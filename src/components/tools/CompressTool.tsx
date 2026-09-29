@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { Zap, Loader2, X, FileIcon, ChevronLeft, ChevronRight, Maximize2, ArrowRight, Lock } from 'lucide-react'
 import { toast } from 'sonner'
-import { PDFDocument, PDFName, PDFNumber, PDFRawStream, PDFArray } from 'pdf-lib'
 
 import { getPdfMetaData, loadPdfDocument, renderPageThumbnail, unlockPdf } from '../../utils/pdfHelpers'
-import { getProcessBytes } from '../../utils/decryptInput'
+import { compressSingleFile, condenseImages } from '../../utils/compressEngines'
+import type { CompressionQuality } from '../../utils/compressEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import { useObjectURL } from '../../utils/useObjectURL'
@@ -82,8 +82,6 @@ type CompressPdfFile = {
   resultMessage?: string
 }
 
-type CompressionQuality = 'low' | 'medium' | 'high'
-
 export default function CompressTool() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { consumePipelineFile, setPipelineFile, lastPipelinedFile } = usePipeline()
@@ -145,168 +143,6 @@ export default function CompressTool() {
     }
   }
 
-  const compressSingleFile = async (item: CompressPdfFile, quality: CompressionQuality, onProgress?: (p: number) => void): Promise<{ url: string, size: number, buffer: Uint8Array }> => {
-    let pdfDoc = item.pdfDoc || await loadPdfDocument(item.file)
-    const scaleMap = { high: 1.0, medium: 1.0, low: 1.0 }; const qualityMap = { high: 0.8, medium: 0.6, low: 0.3 }
-    const scale = scaleMap[quality]; const jpegQuality = qualityMap[quality]
-    const pagesData: { imageBytes: Uint8Array, width: number, height: number }[] = []
-    for (let i = 1; i <= item.pageCount; i++) {
-      const page = await pdfDoc.getPage(i); const viewport = page.getViewport({ scale })
-      const canvas = document.createElement('canvas'); const context = canvas.getContext('2d')
-      if (!context) continue
-      canvas.height = viewport.height; canvas.width = viewport.width
-      await page.render({ canvasContext: context, viewport }).promise
-      const imgData = canvas.toDataURL('image/jpeg', jpegQuality)
-      const base64 = imgData.split(',')[1]; const binaryString = window.atob(base64)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let j = 0; j < binaryString.length; j++) bytes[j] = binaryString.charCodeAt(j)
-      pagesData.push({ imageBytes: bytes, width: viewport.width, height: viewport.height })
-      
-      // Update progress during rasterization phase
-      if (onProgress) onProgress(Math.round((i / item.pageCount) * 50)) // First 50% is rasterization
-      canvas.width = 0; canvas.height = 0
-    }
-    return new Promise((resolve, reject) => {
-      try {
-        const worker = new Worker(new URL('../../utils/pdfWorker.ts', import.meta.url), { type: 'module' })
-        worker.postMessage({ type: 'COMPRESS_PDF_ASSEMBLY', payload: { pages: pagesData, quality } }, pagesData.map(p => p.imageBytes.buffer) as any)
-        
-        worker.onmessage = (e) => {
-          if (e.data.type === 'PROGRESS') {
-             if (onProgress) onProgress(50 + Math.round(e.data.payload * 0.5)) // Second 50% is assembly
-          } else if (e.data.type === 'SUCCESS') {
-            const blob = new Blob([e.data.payload], { type: 'application/pdf' })
-            resolve({ url: createUrl(blob), size: blob.size, buffer: e.data.payload }); worker.terminate()
-          } else if (e.data.type === 'ERROR') {
-            reject(new Error(e.data.payload)); worker.terminate()
-          }
-        }
-
-        worker.onerror = () => {
-          reject(new Error('Worker failed to start or execution error.')); worker.terminate()
-        }
-      } catch (e: any) {
-        reject(new Error(`Failed to start worker: ${e.message}`))
-      }
-    })
-  }
-
-  const decodeJpeg = (data: Uint8Array): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(new Blob([data as any], { type: 'image/jpeg' }))
-    const img = new Image()
-    img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')) }
-    img.src = url
-  })
-
-  const condenseImages = async (item: CompressPdfFile, maxDim: number, jpegQuality: number, onProgress?: (p: number) => void): Promise<{ url: string, size: number, buffer: Uint8Array }> => {
-    // Condense: shrink embedded photos in place, keep text/vectors native.
-    // No new deps, no WASM: pdf-lib walks the image XObjects, platform
-    // canvas re-encodes the JPEGs. Mirrors PaperKnife+ NITRO numbers.
-    const bytes = await getProcessBytes(item.file, item.password)
-    let pdfDoc
-    try {
-      pdfDoc = await PDFDocument.load(bytes, { throwOnInvalidObject: false } as any)
-    } catch {
-      throw new Error(`"${item.file.name}" could not be optimized.`)
-    }
-    const context = (pdfDoc as any).context
-    const MIN_IMAGE_BYTES = 10 * 1024
-    const entries = context.enumerateIndirectObjects() as any[]
-    let shrunk = 0
-    for (let idx = 0; idx < entries.length; idx++) {
-      const [ref, obj] = entries[idx]
-      try {
-        if (!(obj instanceof PDFRawStream)) continue
-        const dict = obj.dict
-        if (!dict) continue
-        const subtype = dict.lookup(PDFName.of('Subtype'))
-        if (!subtype || subtype.toString() !== '/Image') continue
-        if (dict.lookup(PDFName.of('ImageMask'))) continue
-        const filter = dict.lookup(PDFName.of('Filter'))
-        const filterStr = filter ? filter.toString() : ''
-        const cs = dict.lookup(PDFName.of('ColorSpace'))
-        const csStr = cs ? cs.toString() : ''
-        if (!filterStr.includes('DCTDecode') || filterStr.includes('JPXDecode')) continue
-        if (csStr && !csStr.includes('RGB') && !csStr.includes('Gray') && !csStr.includes('Grey')) {
-          // ICCBased profiles (Word/Docs exports, encrypt rebuilds): accept
-          // Gray (N=1) and RGB (N=3), keep rejecting CMYK (N=4) — canvas
-          // would wreck CMYK colors. Indexed-over-RGB is also fine.
-          let colorOk = false
-          try {
-            const resolveRef = (o: any): any => {
-              try {
-                const r = context.lookup(o)
-                return r === undefined ? o : r
-              } catch { return o }
-            }
-            const iccComponents = (o: any): number => {
-              const prof = resolveRef(o)
-              const dictOf = (prof as any)?.dict
-              const nObj = dictOf ? dictOf.get(PDFName.of('N')) : undefined
-              return nObj && typeof (nObj as any).asNumber === 'function' ? (nObj as any).asNumber() : 0
-            }
-            const arr = resolveRef(cs)
-            if (arr instanceof PDFArray && arr.size() > 0) {
-              const headObj = resolveRef(arr.get(0))
-              const head = headObj ? headObj.toString() : ''
-              if (head === '/ICCBased') {
-                const n = iccComponents(arr.get(1))
-                colorOk = n === 1 || n === 3
-              } else if (head === '/Indexed') {
-                const baseObj = resolveRef(arr.get(1))
-                const bStr = baseObj ? baseObj.toString() : ''
-                if (bStr.includes('RGB') || bStr.includes('Gray') || bStr.includes('Grey')) colorOk = true
-                else {
-                  // Base may be an ICC profile stream ref (toString shows "12 0 R")
-                  const n = iccComponents(arr.get(1))
-                  colorOk = n === 1 || n === 3
-                }
-              }
-            }
-          } catch { /* resolve failure — stays rejected */ }
-          if (!colorOk) continue
-        }
-        const contents = obj.getContents() as Uint8Array
-        if (!contents || contents.byteLength < MIN_IMAGE_BYTES) continue
-        let img: HTMLImageElement
-        try {
-          img = await decodeJpeg(contents)
-        } catch { continue }
-        const w = img.naturalWidth, h = img.naturalHeight
-        if (!w || !h) continue
-        const down = Math.min(1, maxDim / Math.max(w, h))
-        const tw = Math.max(1, Math.round(w * down)), th = Math.max(1, Math.round(h * down))
-        const canvas = document.createElement('canvas')
-        canvas.width = tw; canvas.height = th
-        const ctx = canvas.getContext('2d')
-        if (!ctx) continue
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, tw, th)
-        ctx.drawImage(img, 0, 0, tw, th)
-        const dataUrl = canvas.toDataURL('image/jpeg', jpegQuality)
-        const base64 = dataUrl.split(',')[1]
-        const binaryString = window.atob(base64)
-        const fresh = new Uint8Array(binaryString.length)
-        for (let j = 0; j < binaryString.length; j++) fresh[j] = binaryString.charCodeAt(j)
-        canvas.width = 0; canvas.height = 0
-        if (fresh.byteLength >= contents.byteLength) continue
-        dict.set(PDFName.of('Width'), PDFNumber.of(tw))
-        dict.set(PDFName.of('Height'), PDFNumber.of(th))
-        context.assign(ref, PDFRawStream.of(dict, fresh))
-        shrunk++
-      } catch { /* per-image skip: masks, CMYK, odd filters stay untouched */ }
-      if (onProgress && idx % 20 === 0) onProgress(Math.round((idx / entries.length) * 100))
-    }
-    if (shrunk === 0) {
-      throw new Error(`"${item.file.name}" photos could not be shrunk.`)
-    }
-    const out = await pdfDoc.save({ useObjectStreams: true })
-    const buffer = new Uint8Array(out)
-    const blob = new Blob([buffer as any], { type: 'application/pdf' })
-    if (onProgress) onProgress(100)
-    return { url: createUrl(blob), size: blob.size, buffer }
-  }
-
   const startBatchCompression = async () => {
     const pendingFiles = files.filter(f => !f.isLocked && f.status === 'pending')
     if (pendingFiles.length === 0) return
@@ -328,9 +164,9 @@ export default function CompressTool() {
       let crisp = false
       if (quality === 'low') {
         // Smallest path untouched, salvage pass included
-        res = await compressSingleFile(item, quality, setGlobalProgress)
+        res = await compressSingleFile(item, quality, createUrl, setGlobalProgress)
         if (res.size >= originalSize) {
-          const retry = await compressSingleFile(item, 'medium', setGlobalProgress)
+          const retry = await compressSingleFile(item, 'medium', createUrl, setGlobalProgress)
           if (retry.size < res.size) res = retry
         }
       } else {
@@ -347,7 +183,7 @@ export default function CompressTool() {
         }
         for (const c of condenseTiers) {
           try {
-            const attempt = await condenseImages(item, c.maxDim, c.jpegQ, setGlobalProgress)
+            const attempt = await condenseImages(item, c.maxDim, c.jpegQ, createUrl, setGlobalProgress)
             if (consider(attempt, c.tier, true)) break
           } catch { /* photos unshrinkable — fall through to raster */ }
         }
@@ -355,7 +191,7 @@ export default function CompressTool() {
           for (const tier of rasterTiers) {
             let attempt
             try {
-              attempt = await compressSingleFile(item, tier, setGlobalProgress)
+              attempt = await compressSingleFile(item, tier, createUrl, setGlobalProgress)
             } catch (e) {
               if (tier === 'high') continue // raster failure at top tier — fall through to lower tiers
               throw e
