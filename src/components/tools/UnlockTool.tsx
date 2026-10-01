@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { Lock, Unlock, Loader2, X } from 'lucide-react'
-import { PDFDocument } from 'pdf-lib'
 import { toast } from 'sonner'
 
-import { getPdfMetaData, unlockPdf, destroyPdf } from '../../utils/pdfHelpers'
-import { decryptInput } from '../../utils/decryptInput'
+import { getPdfMetaData } from '../../utils/pdfHelpers'
+import { unlockPdfFile } from '../../utils/unlockEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import { useObjectURL } from '../../utils/useObjectURL'
@@ -56,31 +55,10 @@ export default function UnlockTool() {
     const sourceName = pdfData.file.name
     setIsProcessing(true); await new Promise(resolve => setTimeout(resolve, 100))
     try {
-      if (!pdfData.isLocked) {
-        const original = new Uint8Array(await pdfData.file.arrayBuffer())
-        const blob = new Blob([original as any], { type: 'application/pdf' })
-        const url = createUrl(blob)
-        setResultMessage('File Was Already Unlocked')
-        addActivity({ name: `${customFileName || 'unlocked'}.pdf`, tool: 'Unlock', size: blob.size, resultUrl: url, buffer: original })
-        return
-      }
-      const probe = await unlockPdf(pdfData.file, password)
-      if (!probe.success || !probe.pdfDoc) throw new Error(`Incorrect password for "${sourceName}".`)
-      const expectedPages = probe.pageCount
-      await destroyPdf(probe.pdfDoc)
-      const input = new Uint8Array(await pdfData.file.arrayBuffer())
-      const pdfBytes = await decryptInput(input, password, sourceName)
-      let check
-      try {
-        check = await PDFDocument.load(pdfBytes, { throwOnInvalidObject: false } as any)
-      } catch (e: any) {
-        throw new Error(`"${sourceName}" unlocked copy failed verification.`)
-      }
-      if (check.getPageCount() !== expectedPages) throw new Error(`"${sourceName}" unlocked copy failed verification.`)
-      const blob = new Blob([pdfBytes as any], { type: 'application/pdf' })
-      const url = createUrl(blob)
-      setResultMessage('Encryption Removed!')
-      addActivity({ name: `${customFileName || 'unlocked'}.pdf`, tool: 'Unlock', size: blob.size, resultUrl: url, buffer: new Uint8Array(await blob.arrayBuffer()) })
+      const wasLocked = pdfData.isLocked
+      const res = await unlockPdfFile({ file: pdfData.file, password, isLocked: pdfData.isLocked }, password, createUrl)
+      setResultMessage(wasLocked ? 'Encryption Removed!' : 'File Was Already Unlocked')
+      addActivity({ name: `${customFileName || 'unlocked'}.pdf`, tool: 'Unlock', size: res.size, resultUrl: res.url, buffer: res.buffer })
     } catch (error: any) { toast.error(error.message || `Failed to unlock "${sourceName}".`) } finally { setIsProcessing(false) }
   }
 

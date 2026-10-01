@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 import { getPdfMetaData, unlockPdf, destroyPdf } from '../../utils/pdfHelpers'
 import { getProcessBytes } from '../../utils/decryptInput'
+import { wipeMetadata } from '../../utils/metadataEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import SuccessState from './shared/SuccessState'
@@ -117,22 +118,10 @@ export default function MetadataTool() {
       let targetPdf: PDFDocument
       
       if (deepClean) {
-        targetPdf = await PDFDocument.create()
-        const copiedPages = await targetPdf.copyPages(sourcePdf, sourcePdf.getPageIndices())
-        copiedPages.forEach(page => targetPdf.addPage(page))
-        
-        targetPdf.setTitle('')
-        targetPdf.setAuthor('')
-        targetPdf.setSubject('')
-        targetPdf.setKeywords([])
-        targetPdf.setCreator(' ')
-        targetPdf.setProducer(' ')
-        
-        targetPdf.setModificationDate(new Date())
-        targetPdf.setCreationDate(new Date())
-        
-        const dict = targetPdf.catalog.get(targetPdf.context.obj('Metadata'))
-        if (dict) targetPdf.catalog.delete(targetPdf.context.obj('Metadata'))
+        const res = await wipeMetadata({ file: pdfData.file, password: pdfData.password }, (blob) => URL.createObjectURL(blob))
+        setDownloadUrl(res.url)
+        addActivity({ name: `${customFileName}.pdf`, tool: 'Metadata', size: res.size, resultUrl: res.url, buffer: res.buffer })
+        return
       } else { 
         targetPdf = sourcePdf 
         targetPdf.setTitle(meta.title || '')

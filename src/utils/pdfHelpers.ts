@@ -191,16 +191,18 @@ export const loadPdfDocument = async (file: File) => {
 };
 
 // Optimized: Render a specific page from an already loaded PDF Document
-export const renderPageThumbnail = async (pdf: any, pageNum: number, scale = 1.0): Promise<string> => {
+// maxDpr caps device-pixel-ratio scaling (viewer passes 1.5 for live pages:
+// same perceived sharpness, ~44% less bitmap RAM vs dpr 2).
+export const renderPageThumbnail = async (pdf: any, pageNum: number, scale = 1.0, maxDpr = 2): Promise<string> => {
   try {
     const page = await pdf.getPage(pageNum);
     const viewport = page.getViewport({ scale: scale });
-    
+
     // High-quality preview (1200px)
-    const maxDimension = 1200; 
+    const maxDimension = 1200;
     const thumbnailScale = Math.min(maxDimension / viewport.width, maxDimension / viewport.height);
     const dpr = window.devicePixelRatio || 1;
-    const renderScale = scale * thumbnailScale * Math.min(dpr, 2);
+    const renderScale = scale * thumbnailScale * Math.min(dpr, maxDpr);
     const thumbViewport = page.getViewport({ scale: renderScale });
 
     const canvas = document.createElement('canvas');

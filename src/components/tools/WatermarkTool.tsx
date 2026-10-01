@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { Type, Lock, Loader2, Palette, Eye } from 'lucide-react'
-import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib'
 import { toast } from 'sonner'
 
 import { getPdfMetaData, unlockPdf, loadPdfDocument } from '../../utils/pdfHelpers'
-import { getProcessBytes } from '../../utils/decryptInput'
+import { watermarkPdf } from '../../utils/watermarkEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import SuccessState from './shared/SuccessState'
@@ -60,50 +59,17 @@ export default function WatermarkTool() {
     } catch (err) { console.error(err); toast.error('Failed to open PDF') } finally { setIsProcessing(false); setDownloadUrl(null) }
   }
 
-  const hexToRgb = (hex: string) => {
-    const r = parseInt(hex.slice(1, 3), 16) / 255
-    const g = parseInt(hex.slice(3, 5), 16) / 255
-    const b = parseInt(hex.slice(5, 7), 16) / 255
-    return rgb(r, g, b)
-  }
-
   const applyWatermark = async () => {
     if (!pdfData) return
     setIsProcessing(true); await new Promise(resolve => setTimeout(resolve, 100))
     try {
-      const bytes = await getProcessBytes(pdfData.file, pdfData.password)
-      const pdfDoc = await PDFDocument.load(bytes, { throwOnInvalidObject: false } as any)
-      const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-      const pages = pdfDoc.getPages()
-      const watermarkColor = hexToRgb(color)
-      
-      pages.forEach(page => {
-        const { width, height } = page.getSize()
-        // Center the text on the page: pdf-lib draws from the unrotated
-        // baseline start and rotates about it (CSS preview rotates about the
-        // center, clockwise-positive), so offset by half the advance along
-        // the rotated axis and negate the angle to match the preview.
-        const tw = font.widthOfTextAtSize(text, fontSize)
-        const rad = (-rotation * Math.PI) / 180
-        const cap = font.heightAtSize(fontSize) * 0.35
-        const x = width / 2 - (tw / 2) * Math.cos(rad) + cap * Math.sin(rad)
-        const y = height / 2 - (tw / 2) * Math.sin(rad) - cap * Math.cos(rad)
-        page.drawText(text, {
-          x,
-          y,
-          size: fontSize,
-          font,
-          color: watermarkColor,
-          opacity,
-          rotate: degrees(-rotation)
-        })
-      })
-      
-      const pdfBytes = await pdfDoc.save()
-      const blob = new Blob([pdfBytes as any], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
-      setDownloadUrl(url)
-      addActivity({ name: `${customFileName}.pdf`, tool: 'Watermark', size: blob.size, resultUrl: url, buffer: new Uint8Array(await blob.arrayBuffer()) })
+      const res = await watermarkPdf(
+        { file: pdfData.file, password: pdfData.password },
+        { text, opacity, fontSize, rotation, color },
+        (blob) => URL.createObjectURL(blob)
+      )
+      setDownloadUrl(res.url)
+      addActivity({ name: `${customFileName}.pdf`, tool: 'Watermark', size: res.size, resultUrl: res.url, buffer: res.buffer })
     } catch (error: any) { 
       toast.error(`Error: ${error.message}`) 
     } finally { 

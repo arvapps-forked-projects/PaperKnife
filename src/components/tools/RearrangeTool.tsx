@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { Loader2, Lock, Grid, Move, RefreshCcw, X } from 'lucide-react'
-import { PDFDocument } from 'pdf-lib'
 import { DndContext, closestCenter, KeyboardSensor, useSensor, useSensors, DragEndEvent, TouchSensor, MouseSensor } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { toast } from 'sonner'
 
 import { getPdfMetaData, loadPdfDocument, renderPageThumbnail, unlockPdf } from '../../utils/pdfHelpers'
-import { getProcessBytes } from '../../utils/decryptInput'
+import { reorderPdf } from '../../utils/rearrangeEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import SuccessState from './shared/SuccessState'
@@ -107,15 +106,10 @@ export default function RearrangeTool() {
     if (!pdfData) return
     setIsProcessing(true); await new Promise(resolve => setTimeout(resolve, 100))
     try {
-      const bytes = await getProcessBytes(pdfData.file, pdfData.password)
-      const pdfDoc = await PDFDocument.load(bytes, { throwOnInvalidObject: false } as any)
-      const newPdf = await PDFDocument.create()
       const indices = pageOrder.map(id => parseInt(id) - 1)
-      const copiedPages = await newPdf.copyPages(pdfDoc, indices)
-      copiedPages.forEach(page => newPdf.addPage(page))
-      const pdfBytes = await newPdf.save(); const blob = new Blob([pdfBytes as any], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob); setDownloadUrl(url)
-      addActivity({ name: `${customFileName}.pdf`, tool: 'Rearrange', size: blob.size, resultUrl: url, buffer: new Uint8Array(await blob.arrayBuffer()) })
+      const res = await reorderPdf({ file: pdfData.file, password: pdfData.password }, indices, (blob) => URL.createObjectURL(blob))
+      setDownloadUrl(res.url)
+      addActivity({ name: `${customFileName}.pdf`, tool: 'Rearrange', size: res.size, resultUrl: res.url, buffer: res.buffer })
     } catch (error: any) { toast.error(`Error: ${error.message}`) } finally { setIsProcessing(false) }
   }
 

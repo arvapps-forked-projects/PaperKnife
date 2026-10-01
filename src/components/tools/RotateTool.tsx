@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { RotateCw, Lock, RefreshCcw, Loader2, X } from 'lucide-react'
-import { PDFDocument, degrees } from 'pdf-lib'
 import { toast } from 'sonner'
 
 import { getPdfMetaData, loadPdfDocument, renderPageThumbnail, unlockPdf } from '../../utils/pdfHelpers'
-import { getProcessBytes } from '../../utils/decryptInput'
+import { rotatePdf } from '../../utils/rotateEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import SuccessState from './shared/SuccessState'
@@ -79,16 +78,9 @@ export default function RotateTool() {
     if (!pdfData) return
     setIsProcessing(true); await new Promise(resolve => setTimeout(resolve, 100))
     try {
-      const bytes = await getProcessBytes(pdfData.file, pdfData.password)
-      const pdfDoc = await PDFDocument.load(bytes, { throwOnInvalidObject: false } as any)
-      const pages = pdfDoc.getPages()
-      pages.forEach((page, idx) => {
-        const pageNum = idx + 1; const rotationToAdd = rotations[pageNum] || 0
-        if (rotationToAdd !== 0) { const currentRotation = page.getRotation().angle; page.setRotation(degrees((currentRotation + rotationToAdd) % 360)) }
-      })
-      const pdfBytes = await pdfDoc.save(); const blob = new Blob([pdfBytes as any], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob); setDownloadUrl(url)
-      addActivity({ name: `${customFileName}.pdf`, tool: 'Rotate', size: blob.size, resultUrl: url, buffer: new Uint8Array(await blob.arrayBuffer()) })
+      const res = await rotatePdf({ file: pdfData.file, password: pdfData.password }, rotations, (blob) => URL.createObjectURL(blob))
+      setDownloadUrl(res.url)
+      addActivity({ name: `${customFileName}.pdf`, tool: 'Rotate', size: res.size, resultUrl: res.url, buffer: res.buffer })
     } catch (error: any) { toast.error(`Error: ${error.message}`) } finally { setIsProcessing(false) }
   }
 

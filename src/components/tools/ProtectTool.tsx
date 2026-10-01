@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { Lock, ShieldCheck, Loader2, ArrowRight, X } from 'lucide-react'
-import { PDFDocument } from 'pdf-lib'
-import { encryptPDF } from '@pdfsmaller/pdf-encrypt-lite'
 import { toast } from 'sonner'
 import { Capacitor } from '@capacitor/core'
 
 import { getPdfMetaData, unlockPdf } from '../../utils/pdfHelpers'
-import { getProcessBytes } from '../../utils/decryptInput'
+import { protectPdf } from '../../utils/protectEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import { useObjectURL } from '../../utils/useObjectURL'
@@ -72,19 +70,8 @@ export default function ProtectTool() {
     await new Promise(resolve => setTimeout(resolve, 150))
     
     try {
-      const bytes = await getProcessBytes(pdfData.file, pdfData.sourcePassword)
-      const sourcePdf = await PDFDocument.load(bytes, { throwOnInvalidObject: false } as any)
-      const newPdf = await PDFDocument.create()
-      const pages = await newPdf.copyPages(sourcePdf, sourcePdf.getPageIndices())
-      pages.forEach(page => newPdf.addPage(page))
-      const pdfBytes = await newPdf.save({ useObjectStreams: false })
-      
-      // Heavy task: encryption
-      const encryptedBytes = await encryptPDF(pdfBytes, password)
-      
-      const blob = new Blob([encryptedBytes as any], { type: 'application/pdf' })
-      const url = createUrl(blob)
-      addActivity({ name: `${customFileName || 'protected'}.pdf`, tool: 'Protect', size: blob.size, resultUrl: url, buffer: new Uint8Array(await blob.arrayBuffer()) })
+      const res = await protectPdf({ file: pdfData.file }, pdfData.sourcePassword, password, createUrl)
+      addActivity({ name: `${customFileName || 'protected'}.pdf`, tool: 'Protect', size: res.size, resultUrl: res.url, buffer: res.buffer })
     } catch (error: any) { 
       console.error('Encryption error:', error)
       toast.error(`Encryption failed: ${error.message}`) 

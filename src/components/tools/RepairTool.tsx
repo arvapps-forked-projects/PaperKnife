@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { Loader2, ShieldAlert, Upload, X, FileCheck } from 'lucide-react'
-import { PDFDocument } from 'pdf-lib'
 import { toast } from 'sonner'
 
 import { getPdfMetaData } from '../../utils/pdfHelpers'
+import { repairPdf } from '../../utils/repairEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import SuccessState from './shared/SuccessState'
@@ -40,17 +40,10 @@ export default function RepairTool() {
     if (!originalFile) return
     setIsProcessing(true)
     try {
-      const arrayBuffer = await originalFile.arrayBuffer()
-      const pdfDoc = await PDFDocument.load(arrayBuffer, {
-        ignoreEncryption: true, throwOnInvalidObject: false
-      } as any)
-      
-      const pdfBytes = await pdfDoc.save()
-      const blob = new Blob([pdfBytes as any], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
-      
-      setDownloadUrl(url)
-      addActivity({ name: `${customFileName}.pdf`, tool: 'Repair', size: blob.size, resultUrl: url, buffer: new Uint8Array(await blob.arrayBuffer()) })
+      const res = await repairPdf({ file: originalFile }, (blob) => URL.createObjectURL(blob))
+
+      setDownloadUrl(res.url)
+      addActivity({ name: `${customFileName}.pdf`, tool: 'Repair', size: res.size, resultUrl: res.url, buffer: res.buffer })
       toast.success('PDF rebuilt successfully!')
     } catch (error: any) {
       toast.error(`Repair failed for "${originalFile.name}": ${error.message}`)
