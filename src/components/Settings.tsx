@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { 
   Trash2, Clock, Moon, Sun, Monitor,
   ChevronRight, Info, Zap, User, DownloadCloud, ListFilter,
-  RotateCcw, ShieldCheck, Bug, Heart as HeartIcon, Settings2
+  RotateCcw, ShieldCheck, Bug, Heart as HeartIcon, Github as GHIcon
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { clearActivity } from '../utils/recentActivity'
 import { toast } from 'sonner'
 import { Theme } from '../types'
 import { NativeToolLayout } from './tools/shared/NativeToolLayout'
+import { TabHeader } from './AndroidHeader'
+import { PaperKnifeLogo } from './Logo'
 import { hapticImpact } from '../utils/haptics'
 
 // --- Custom UI Components ---
@@ -105,22 +107,26 @@ export default function Settings({ theme, setTheme }: { theme: Theme, setTheme: 
   }
 
   return (
-    <NativeToolLayout title="System" description="Core Configuration" actions={null}>
+    <NativeToolLayout title="Settings" description="Core Configuration" actions={null} hideNativeHeader>
+      <div className="md:hidden -mx-4 -mt-4">
+        <TabHeader title="Settings" />
+      </div>
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 pb-40">
-        
-        {/* Integrated Header */}
-        <div className="flex items-center gap-4 px-2 mb-8 mt-2">
-           <div className="w-12 h-12 bg-rose-500 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-500/20 text-white shrink-0">
-              <Settings2 size={24} strokeWidth={2.5} />
-           </div>
-           <div>
-              <h2 className="text-xl font-black dark:text-white tracking-tighter leading-none mb-1">Preferences</h2>
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Protocol v1.1.0 • Local</p>
-           </div>
+
+        {/* Identity card */}
+        <div className="mb-8 p-5 bg-zinc-950 dark:bg-white rounded-[2rem] flex items-center gap-4 shadow-xl overflow-hidden relative">
+          <div className="w-12 h-12 bg-white dark:bg-zinc-950 rounded-2xl flex items-center justify-center shrink-0">
+            <PaperKnifeLogo size={24} iconColor="#F43F5E" partColor="#000000" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-black text-white dark:text-black tracking-tighter leading-none mb-1">PaperKnife</h2>
+            <p className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">Private by design • No servers</p>
+          </div>
+          <span className="text-[9px] font-black uppercase tracking-widest text-white dark:text-black bg-white/10 dark:bg-black/10 rounded-full px-3 py-1.5 shrink-0">v1.1.0</span>
         </div>
 
-        {/* Visual Interface */}
-        <SettingGroup title="Interface">
+        {/* Appearance */}
+        <SettingGroup title="Appearance">
           <div className="p-2 grid grid-cols-3 gap-2">
             {[
               { id: 'light', icon: Sun, label: 'Light' },
@@ -148,8 +154,8 @@ export default function Settings({ theme, setTheme }: { theme: Theme, setTheme: 
           />
         </SettingGroup>
 
-        {/* Workflow Automation */}
-        <SettingGroup title="Workflow">
+        {/* Automation */}
+        <SettingGroup title="Automation">
           <SettingItem 
             icon={DownloadCloud} 
             title="Auto-Download" 
@@ -222,14 +228,21 @@ export default function Settings({ theme, setTheme }: { theme: Theme, setTheme: 
           </div>
         </SettingGroup>
 
-        {/* Ecosystem */}
-        <SettingGroup title="Ecosystem">
+        {/* Support */}
+        <SettingGroup title="Support">
           <SettingItem 
             icon={HeartIcon} 
             title="Sponsor Project" 
             subtitle="Fuel development"
             iconColor="text-rose-500 bg-rose-50 dark:bg-rose-900/20"
             onClick={() => window.open('https://github.com/sponsors/potatameister', '_blank')}
+          />
+          <SettingItem 
+            icon={GHIcon} 
+            title="Support PaperKnife" 
+            subtitle="Help & support page"
+            iconColor="bg-zinc-950 text-white dark:bg-white dark:text-black"
+            onClick={() => window.open('https://potatameister.github.io/support', '_blank')}
           />
           <SettingItem 
             icon={Bug} 

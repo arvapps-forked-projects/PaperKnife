@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from 'react'
 import { Type, Lock, Loader2, Palette, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { getPdfMetaData, unlockPdf, loadPdfDocument } from '../../utils/pdfHelpers'
+import { PDFDocument } from 'pdf-lib'
+import { getProcessBytes } from '../../utils/decryptInput'
+import { getPdfMetaData, unlockPdf, loadPdfDocument, renderPageThumbnail } from '../../utils/pdfHelpers'
 import { watermarkPdf } from '../../utils/watermarkEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
@@ -24,6 +26,62 @@ export default function WatermarkTool() {
   const [fontSize, setFontSize] = useState(50)
   const [rotation, setRotation] = useState(-45)
   const [color, setColor] = useState('#000000')
+  const [previewImg, setPreviewImg] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewToken = useRef(0)
+  // Decrypted source bytes are cached per file: sliders must never pay
+  // decrypt + full verify per keystroke.
+  const previewBytesRef = useRef<{ key: string, bytes: Uint8Array } | null>(null)
+
+  // True preview: run the real engine on current settings and rasterize
+  // result page 1. The preview IS the output, so size/position/rotation
+  // can never drift like the old mock did. Only page 1 is processed, so
+  // even heavy files preview in a fraction of a second.
+  useEffect(() => {
+    if (!pdfData || pdfData.isLocked) { setPreviewImg(null); return }
+    setPreviewLoading(true)
+    const token = ++previewToken.current
+    if (previewTimer.current) clearTimeout(previewTimer.current)
+    previewTimer.current = setTimeout(async () => {
+      try {
+        const key = `${pdfData.file.name}:${pdfData.file.size}:${(pdfData.file as File).lastModified}:${pdfData.password ?? ''}`
+        let raw = previewBytesRef.current?.key === key ? previewBytesRef.current.bytes : null
+        if (!raw) {
+          raw = await getProcessBytes(pdfData.file, pdfData.password)
+          previewBytesRef.current = { key, bytes: raw }
+        }
+        const src = await PDFDocument.load(raw, { throwOnInvalidObject: false } as any)
+        const one = await PDFDocument.create()
+        const [first] = await one.copyPages(src, [0])
+        one.addPage(first)
+        const oneBytes = await one.save()
+        const oneFile = new File([oneBytes as any], 'watermark-preview.pdf', { type: 'application/pdf' })
+        const res = await watermarkPdf(
+          { file: oneFile },
+          { text, opacity, fontSize, rotation, color },
+          (blob) => URL.createObjectURL(blob),
+        )
+        if (previewToken.current !== token) { URL.revokeObjectURL(res.url); return }
+        const file = new File([res.buffer as any], 'watermark-preview.pdf', { type: 'application/pdf' })
+        const doc = await loadPdfDocument(file)
+        let thumb = ''
+        try {
+          thumb = await renderPageThumbnail(doc, 1, 1.0)
+        } finally {
+          try { doc.destroy() } catch { /* ignore */ }
+        }
+        URL.revokeObjectURL(res.url)
+        if (previewToken.current !== token) return
+        if (thumb) setPreviewImg(thumb)
+      } catch {
+        // Keep last good preview; failures surface on Apply with a toast.
+      } finally {
+        if (previewToken.current === token) setPreviewLoading(false)
+      }
+    }, 350)
+    return () => { if (previewTimer.current) clearTimeout(previewTimer.current) }
+  }, [pdfData, text, opacity, fontSize, rotation, color])
 
   useEffect(() => {
     const pipelined = consumePipelineFile()
@@ -109,26 +167,17 @@ export default function WatermarkTool() {
                <div className="flex justify-between items-center w-full mb-4 px-2">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><Eye size={12}/> Live Preview</h4>
                </div>
-               <div className="relative aspect-[3/4] w-full max-w-[300px] bg-white border border-gray-100 dark:border-zinc-800 rounded-xl overflow-hidden shadow-inner">
-                  {pdfData.thumbnail ? (
-                    <img src={pdfData.thumbnail} className="w-full h-full object-contain opacity-50" />
+               <div className="relative w-full max-w-[300px] bg-white border border-gray-100 dark:border-zinc-800 rounded-xl overflow-hidden shadow-inner">
+                  {previewImg ? (
+                    <img src={previewImg} className="w-full h-auto block" alt="Watermark preview" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-100"><Type size={64} /></div>
+                    <div className="w-full min-h-[300px] flex items-center justify-center text-gray-100"><Type size={64} /></div>
                   )}
-                  <div 
-                    className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden"
-                    style={{ 
-                      color: color, 
-                      opacity: opacity,
-                      transform: `rotate(${rotation}deg)`,
-                      fontSize: `${fontSize / 3}px`,
-                      fontWeight: '900',
-                      textAlign: 'center',
-                      lineHeight: '1'
-                    }}
-                  >
-                    {text}
-                  </div>
+                  {previewLoading && (
+                    <div className="absolute inset-0 bg-white/30 flex items-start justify-end p-2 pointer-events-none">
+                      <Loader2 className="animate-spin text-rose-500" size={16} />
+                    </div>
+                  )}
                </div>
             </div>
           </div>

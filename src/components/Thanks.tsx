@@ -48,9 +48,14 @@ export default function Thanks() {
             <p className="text-zinc-400 text-sm font-medium leading-relaxed max-w-lg mb-8 mx-auto md:mx-0">
               The heroes who fuel the engine. Your support ensures PaperKnife stays free and private forever. Sponsors receive a permanent shout-out here.
             </p>
-            <a href="https://github.com/sponsors/potatameister" target="_blank" className="inline-flex items-center gap-3 px-8 py-3.5 bg-white text-rose-600 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:scale-105 transition-transform shadow-lg">
-              <HeartIcon size={14} fill="currentColor" /> Sponsor Project
-            </a>
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+              <a href="https://github.com/sponsors/potatameister" target="_blank" className="inline-flex items-center gap-3 px-8 py-3.5 bg-white text-rose-600 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:scale-105 transition-transform shadow-lg">
+                <HeartIcon size={14} fill="currentColor" /> Sponsor Project
+              </a>
+              <a href="https://potatameister.github.io/support" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 px-8 py-3.5 bg-zinc-950 dark:bg-white text-white dark:text-black border border-white/20 dark:border-transparent rounded-2xl font-black uppercase tracking-widest text-[10px] hover:scale-105 transition-transform shadow-lg">
+                <GHIcon size={14} /> Support PaperKnife
+              </a>
+            </div>
           </div>
         </div>
 

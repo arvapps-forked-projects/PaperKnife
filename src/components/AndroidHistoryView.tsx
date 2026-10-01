@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Download as DownloadIcon,
-  Clock as HistoryIcon, Shield as ShieldIcon, Search as SearchIcon, FileText as FileTextIcon, ChevronRight as ChevronRightIcon, X as XIcon, Trash2 as Trash2Icon, Calendar as CalendarIcon, HardDrive as HardDriveIcon, Share2 as ShareIcon, FolderOpen as OpenIcon
+  Clock as HistoryIcon, FileText as FileTextIcon, ChevronRight as ChevronRightIcon, X as XIcon, Trash2 as Trash2Icon, Calendar as CalendarIcon, HardDrive as HardDriveIcon, Share2 as ShareIcon, FolderOpen as OpenIcon
 } from 'lucide-react'
 import { ActivityEntry, getRecentActivity, clearActivity, deleteActivity } from '../utils/recentActivity'
 import { downloadFile, shareFile } from '../utils/pdfHelpers'
 import { usePipeline } from '../utils/pipelineContext'
 import { useBackHandler } from '../utils/backHandler'
 import PdfPreview from './PdfPreview'
+import { TabHeader } from './AndroidHeader'
 import { toast } from 'sonner'
 
 // Originating tool route for preview's "+" (process) action (zip outputs offer Download/Share/Delete only)
@@ -125,43 +126,21 @@ export default function AndroidHistoryView() {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-black pb-32 transition-colors">
-      <header className="px-6 pt-[calc(env(safe-area-inset-top)+1rem)] pb-6 sticky top-0 bg-[#FAFAFA]/90 dark:bg-black/90 backdrop-blur-xl z-50 border-b border-gray-100 dark:border-white/5">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex flex-col text-left">
-            <h1 className="text-3xl font-black tracking-tighter dark:text-white">Activity</h1>
-            <p className="text-[10px] font-black uppercase tracking-widest text-rose-500 opacity-80">Local Storage Active</p>
-          </div>
-          {history.length > 0 && (
-            <button 
-              onClick={handleClear}
-              className="p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-2xl active:scale-90 transition-all shadow-sm"
-            >
-              <Trash2Icon size={20} />
-            </button>
-          )}
-        </div>
-
-        <div className="relative group">
-          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-rose-500 transition-colors">
-            <SearchIcon size={18} />
-          </div>
-          <input 
-            type="text"
-            placeholder="Search documents..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-900 border border-gray-100 dark:border-white/5 rounded-2xl py-4 pl-14 pr-6 text-sm font-bold placeholder:text-gray-400 focus:bg-white dark:focus:bg-zinc-800 shadow-sm outline-none transition-all dark:text-white"
-          />
-          {searchQuery && (
-            <button 
-              onClick={() => setSearchQuery('')}
-              className="absolute inset-y-0 right-4 flex items-center text-gray-400"
-            >
-              <XIcon size={16} />
-            </button>
-          )}
-        </div>
-      </header>
+      <TabHeader
+        title="Activity"
+        query={searchQuery}
+        onQuery={setSearchQuery}
+        placeholder="Search documents..."
+        action={history.length > 0 ? (
+          <button
+            onClick={handleClear}
+            aria-label="Clear history"
+            className="p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-2xl active:scale-90 transition-all shadow-sm"
+          >
+            <Trash2Icon size={20} />
+          </button>
+        ) : undefined}
+      />
 
       <main className="px-4 py-6 space-y-2">
         {filteredHistory.length === 0 ? (
@@ -213,15 +192,6 @@ export default function AndroidHistoryView() {
           ))
         )}
 
-        <div className="pt-12 flex flex-col items-center gap-3 pb-10 opacity-30">
-           <div className="flex items-center gap-2">
-             <ShieldIcon size={14} className="text-emerald-500" />
-             <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gray-500">Privacy Protocol</span>
-           </div>
-           <p className="text-[7px] font-medium text-gray-400 max-w-[200px] text-center">
-             Documents are processed locally in your private environment. Activity logs are stored on this device only.
-           </p>
-        </div>
       </main>
 
       {selected && (
