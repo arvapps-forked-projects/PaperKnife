@@ -70,9 +70,11 @@ Notes:
 
 ## Support
 
-[![GitHub Sponsor](https://img.shields.io/badge/sponsor-potatameister-red?logo=github-sponsors)](https://github.com/sponsors/potatameister)
+[![Sponsor](https://img.shields.io/badge/Sponsor-potatameister-red?style=for-the-badge&logo=github-sponsors)](https://potatameister.github.io/support)
+[![Support](https://img.shields.io/badge/Support-paperknife-blue?style=for-the-badge&logo=heart)](https://potatameister.github.io/support)
+[![Star](https://img.shields.io/badge/Star-the_repo-yellow?style=for-the-badge&logo=github)](https://github.com/potatameister/PaperKnife/stargazers)
 
-PaperKnife is a solo project — open-source, ad-free, and tracker-free. If it saved you time or kept your data safe: sponsor development, star the repo, or share it with anyone who handles sensitive documents.
+PaperKnife is a solo project — open-source, ad-free, and tracker-free. All support options (one-time, monthly, crypto, and more) live on the [support page](https://potatameister.github.io/support). If it saved you time or kept your data safe: chip in, star the repo, or share it with anyone who handles sensitive documents.
 
 ---
 
