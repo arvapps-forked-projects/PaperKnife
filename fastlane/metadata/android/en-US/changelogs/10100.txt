@@ -1,4 +1,6 @@
-History fix & speed update:
-- History entries now open, download, share, or delete on tap.
-- Fixed memory leaks and silent failures, faster startup.
-- Privacy: no permissions asked, device backup disabled.
+- Compress rebuilt: photos shrink in place, text stays sharp.
+- Unlock rebuilt: real decryption on Android and web.
+- Viewer zoom: pinch, double-tap, gapless pages.
+- New: image DPI and separate-file export, signature library.
+- History, back button, and open-with fixes throughout.
+- Privacy: zero permissions, on-device only, no ads.
