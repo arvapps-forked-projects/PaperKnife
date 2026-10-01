@@ -6,8 +6,9 @@ import {
   Sun as SunIcon, 
   History as HistoryIcon, 
   Upload as UploadIcon, 
-  ChevronRight as ChevronRightIcon, 
+  ChevronRight as ChevronRightIcon,
   ChevronDown as ChevronDownIcon,
+  X as XIcon,
   Plus as PlusIcon, 
   Trash2 as Trash2Icon, 
   CheckCircle2 as CheckCircleIcon, 
@@ -18,9 +19,7 @@ import {
   Settings as SettingsIcon,
   Github as GHIcon,
   Heart as HeartIcon,
-  Download,
-  FileText,
-  Image as ImageIcon
+  Download
 } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { Theme, Tool, ToolCategory, ViewMode } from '../types'
@@ -28,6 +27,8 @@ import { PaperKnifeLogo } from './Logo'
 import { ActivityEntry, getRecentActivity, clearActivity } from '../utils/recentActivity'
 import { useBackHandler } from '../utils/backHandler'
 import { hapticImpact } from '../utils/haptics'
+import { usePipeline } from '../utils/pipelineContext'
+import { toast } from 'sonner'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -52,6 +53,58 @@ export default function Layout({ children, theme, toggleTheme, tools, onFileDrop
   const [showHistory, setShowHistory] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [showFabMenu, setShowFabMenu] = useState(false)
+  const [showFabMore, setShowFabMore] = useState(false)
+  const { setPipelineFile } = usePipeline()
+
+  // FAB mirrors the preview's QuickDrop picker: same tool list, reversed
+  // flow — pick a tool first, then the file goes straight into it.
+  const pickFileForTool = (tool: Tool) => {
+    if (!tool.implemented || !tool.path) return
+    setShowFabMenu(false)
+    setShowFabMore(false)
+    hapticImpact()
+    const input = document.createElement('input')
+    input.type = 'file'
+    const isImageTool = tool.path === '/image-to-pdf'
+    input.accept = isImageTool ? 'image/*' : '.pdf'
+    input.multiple = isImageTool
+    input.onchange = async () => {
+      const files = (input as HTMLInputElement).files
+      if (!files || files.length === 0) return
+      try {
+        if (isImageTool) {
+          onFileDrop?.(files)
+          return
+        }
+        const file = files[0]
+        toast.loading(`Importing ${file.name}...`, { id: 'fab-load' })
+        const buffer = await file.arrayBuffer()
+        setPipelineFile({
+          buffer: new Uint8Array(buffer),
+          name: file.name,
+          type: file.type || 'application/pdf',
+        })
+        navigate(tool.path as string)
+        toast.success(`Opened in ${tool.title}`, { id: 'fab-load' })
+      } catch {
+        toast.error('Failed to process file')
+      }
+    }
+    input.click()
+  }
+
+  const fabToolRow = (tool: Tool) => (
+    <button
+      key={tool.title}
+      onClick={() => pickFileForTool(tool)}
+      className="flex items-center gap-3 p-3 bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-white/5 active:bg-gray-50 dark:active:bg-zinc-800 active:scale-95 transition-all shadow-sm group"
+    >
+      <div className={`p-2 rounded-xl ${tool.bg} ${tool.color} group-active:scale-110 transition-transform`}>
+        <tool.icon size={18} strokeWidth={2.5} />
+      </div>
+      <span className="text-xs font-bold text-gray-900 dark:text-zinc-200">{tool.title}</span>
+    </button>
+  )
   const [activity, setActivity] = useState<ActivityEntry[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
   const isNative = Capacitor.isNativePlatform()
@@ -242,7 +295,7 @@ export default function Layout({ children, theme, toggleTheme, tools, onFileDrop
                 <h4 className="font-bold text-[10px] uppercase tracking-widest text-gray-900 dark:text-white mb-4">Protocol</h4>
                 <ul className="space-y-2.5 text-xs text-gray-500 dark:text-zinc-500">
                   <li><Link to="/about" className="hover:text-rose-500 transition-colors">About</Link></li>
-                  <li><Link to="/privacy" className="hover:text-rose-500 transition-colors">Privacy Spec</Link></li>
+                  <li><a href="https://potatameister.github.io/privacy/paperknife" target="_blank" rel="noopener noreferrer" className="hover:text-rose-500 transition-colors">Privacy Spec</a></li>
                   <li><a href="https://github.com/potatameister/PaperKnife/blob/main/LICENSE" target="_blank" className="hover:text-rose-500 transition-colors">License</a></li>
                 </ul>
               </div>
@@ -291,61 +344,54 @@ export default function Layout({ children, theme, toggleTheme, tools, onFileDrop
           {/* Floating Action Button - Lifted */}
           <div className="relative -top-8">
              {showFabMenu && (
-               <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col gap-3 items-center animate-in slide-in-from-bottom-4 duration-300 z-[110]">
-                  <button 
-                    onClick={() => {
-                      setShowFabMenu(false)
-                      hapticImpact()
-                      const input = document.createElement('input')
-                      input.type = 'file'
-                      input.accept = '.pdf'
-                      input.onchange = (e) => {
-                        const file = (e.target as HTMLInputElement).files?.[0]
-                        if (file) onFileDrop?.([file] as any)
-                      }
-                      input.click()
-                    }}
-                    className="flex items-center gap-3 px-6 py-4 bg-white dark:bg-zinc-900 text-gray-900 dark:text-white rounded-[2rem] shadow-2xl border border-gray-100 dark:border-white/5 active:scale-95 transition-all whitespace-nowrap"
-                  >
-                    <div className="p-2 bg-blue-500/10 text-blue-500 rounded-xl">
-                      <FileText size={20} />
+               <div className="fixed inset-x-0 bottom-0 z-[110] flex justify-center pointer-events-none">
+               <div className="w-full max-w-md max-h-[62vh] overflow-y-auto scrollbar-hide rounded-t-[2.5rem] bg-[#FAFAFA] dark:bg-zinc-950 shadow-2xl border-t border-x border-gray-100 dark:border-white/10 p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] space-y-4 animate-in slide-in-from-bottom-full duration-500 ease-out pointer-events-auto">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-400 dark:text-zinc-500">Quick Actions</p>
+                    <button
+                      onClick={() => { hapticImpact(); setShowFabMenu(false); setShowFabMore(false) }}
+                      aria-label="Close quick actions"
+                      className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 dark:bg-zinc-900 text-gray-400 active:scale-90 transition-all"
+                    >
+                      <XIcon size={18} />
+                    </button>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-[0.2em] mb-3 ml-1">Essentials</p>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {tools.filter(t => t.implemented && t.path).slice(0, 4).map(fabToolRow)}
                     </div>
-                    <span className="font-bold text-sm">Import PDF</span>
-                  </button>
+                  </div>
 
-                  <button 
-                    onClick={() => {
-                      setShowFabMenu(false)
-                      hapticImpact()
-                      const input = document.createElement('input')
-                      input.type = 'file'
-                      input.accept = 'image/*'
-                      input.multiple = true
-                      input.onchange = (e) => {
-                        const files = (e.target as HTMLInputElement).files
-                        if (files && files.length > 0) onFileDrop?.(files)
-                      }
-                      input.click()
-                    }}
-                    className="flex items-center gap-3 px-6 py-4 bg-white dark:bg-zinc-900 text-gray-900 dark:text-white rounded-[2rem] shadow-2xl border border-gray-100 dark:border-white/5 active:scale-95 transition-all whitespace-nowrap"
-                  >
-                    <div className="p-2 bg-emerald-500/10 text-emerald-500 rounded-xl">
-                      <ImageIcon size={20} />
-                    </div>
-                    <span className="font-bold text-sm">Gallery (Images to PDF)</span>
-                  </button>
+                  <div>
+                    <button
+                      onClick={() => { hapticImpact(); setShowFabMore(!showFabMore) }}
+                      className="w-full flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-gray-100 dark:border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-rose-500 transition-colors shadow-sm"
+                    >
+                      <span>Full Tool Catalog</span>
+                      <ChevronDownIcon size={14} className={`transition-transform duration-300 ${showFabMore ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showFabMore && (
+                      <div className="grid grid-cols-2 gap-2.5 mt-3 animate-in slide-in-from-top-2 duration-300 pb-2">
+                        {tools.filter(t => t.implemented && t.path).slice(4).map(fabToolRow)}
+                      </div>
+                    )}
+                  </div>
+               </div>
                </div>
              )}
              {showFabMenu && <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[105] animate-in fade-in duration-300" onClick={() => setShowFabMenu(false)} />}
-             <button 
-               onClick={() => {
-                 hapticImpact()
-                 setShowFabMenu(!showFabMenu)
-               }}
-               className={`w-14 h-14 bg-rose-500 text-white rounded-2xl shadow-xl shadow-rose-500/40 flex items-center justify-center active:scale-90 transition-transform ring-4 ring-white dark:ring-black z-[110] relative ${showFabMenu ? 'rotate-45' : ''}`}
-             >
-               <PlusIcon size={32} strokeWidth={3} />
-             </button>
+              <button
+                onClick={() => {
+                  hapticImpact()
+                  setShowFabMenu(!showFabMenu)
+                }}
+                aria-label="Open quick actions"
+                className={`w-14 h-14 bg-rose-500 text-white rounded-2xl shadow-xl shadow-rose-500/40 flex items-center justify-center active:scale-90 transition-all ring-4 ring-white dark:ring-black z-[110] relative ${showFabMenu ? 'opacity-0 pointer-events-none scale-50' : 'opacity-100 scale-100'}`}
+              >
+                <PlusIcon size={32} strokeWidth={3} />
+              </button>
           </div>
           
           <button 

@@ -97,7 +97,13 @@ export default function PdfToTextTool() {
         await worker.terminate()
       }
       setExtractedText(result); toast.success('Complete!')
-    } catch (err: any) { toast.error(`Text extraction failed for "${pdfData.file.name}".`) } finally { setIsProcessing(false) }
+    } catch (err: any) {
+      const cause = String(err?.message || err || '')
+      const hint = /worker|wasm|fetch|load|network|fetch/i.test(cause)
+        ? ' The OCR engine files may be missing — run `npm run vendor:ocr`.'
+        : cause ? ` ${cause}` : ''
+      toast.error(`Text extraction failed for "${pdfData.file.name}".${hint}`)
+    } finally { setIsProcessing(false) }
   }
 
   const handleDownload = async () => {

@@ -34,7 +34,6 @@ import AndroidToolsView from './components/AndroidToolsView'
 import AndroidHistoryView from './components/AndroidHistoryView'
 import About from './components/About'
 import Thanks from './components/Thanks'
-import PrivacyPolicy from './components/PrivacyPolicy'
 import SettingsView from './components/Settings'
 import PdfPreview from './components/PdfPreview'
 
@@ -81,6 +80,16 @@ export const IS_OCR_DISABLED = import.meta.env.VITE_DISABLE_OCR === 'true'
 export const activeTools = IS_OCR_DISABLED 
   ? tools.filter(t => t.path !== '/pdf-to-text') 
   : tools
+
+export const PRIVACY_URL = 'https://potatameister.github.io/privacy/paperknife'
+
+// Privacy spec lives on the support site; the in-app route hands off.
+function PrivacyRedirect() {
+  useEffect(() => {
+    window.location.replace(PRIVACY_URL)
+  }, [])
+  return null
+}
 
 function QuickDropModal({ file, onClear, onBack }: { file: File, onClear: () => void, onBack?: () => void }) {
   const navigate = useNavigate()
@@ -364,7 +373,7 @@ function AppContent({ theme, toggleTheme, setTheme, viewMode, setViewMode }: {
           <Route path="/extract-images" element={<ExtractImagesTool />} />
           <Route path="/grayscale" element={<GrayscaleTool />} />
           <Route path="/about" element={<About viewMode={viewMode} />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/privacy" element={<PrivacyRedirect />} />
           <Route path="/settings" element={<SettingsView theme={theme} setTheme={setTheme} />} />
           <Route path="/thanks" element={<Thanks />} />
         </Routes>
