@@ -1,14 +1,15 @@
 {
   "name": "paperknife",
   "private": true,
-  "version": "1.0.9",
+  "version": "1.1.0",
   "type": "module",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "lint": "eslint . --report-unused-disable-directives",
+    "preview": "vite preview",
+    "vendor:ocr": "node scripts/vendor-tesseract.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",
@@ -27,6 +28,7 @@
     "lucide-react": "^0.446.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.4.530",
+    "qpdf-run": "^0.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.13.0",

@@ -1,14 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { Loader2, Scissors, Check, Plus, Lock, ArrowRight, X, Zap } from 'lucide-react'
-import JSZip from 'jszip'
 import { toast } from 'sonner'
 
 import { getPdfMetaData, loadPdfDocument, renderGridThumbnail, unlockPdf } from '../../utils/pdfHelpers'
+import { getProcessBytes } from '../../utils/decryptInput'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import { useObjectURL } from '../../utils/useObjectURL'
 import SuccessState from './shared/SuccessState'
-import PrivacyBadge from './shared/PrivacyBadge'
 import { NativeToolLayout } from './shared/NativeToolLayout'
 
 type SplitPdfFile = {
@@ -75,7 +74,7 @@ export default function SplitTool() {
       const all = new Set<number>(); for (let i = 1; i <= result.pageCount; i++) all.add(i)
       setSelectedPages(all); setRangeInput(`1-${result.pageCount}`)
     } else {
-      toast.error('Incorrect password')
+      toast.error(`Incorrect password for "${pdfData?.file.name}".`)
     }
     setIsLoadingMeta(false)
   }
@@ -136,22 +135,29 @@ export default function SplitTool() {
     if (!pdfData || selectedPages.size === 0) return
     setIsProcessing(true)
     try {
-      const buffer = await pdfData.file.arrayBuffer()
+      let buffer: Uint8Array
+      try {
+        buffer = await getProcessBytes(pdfData.file, pdfData.password)
+      } catch (e: any) {
+        toast.error(e.message || `Failed to unlock "${pdfData.file.name}".`); setIsProcessing(false); return
+      }
+      if (!buffer || buffer.byteLength === 0) { toast.error(`"${pdfData.file.name}" is empty`); setIsProcessing(false); return }
       const worker = new Worker(new URL('../../utils/pdfWorker.ts', import.meta.url), { type: 'module' })
-      worker.postMessage({ type: 'SPLIT_PDF', payload: { buffer, password: pdfData.password, selectedPages: Array.from(selectedPages), mode: splitMode, customFileName } })
+      worker.postMessage({ type: 'SPLIT_PDF', payload: { buffer, selectedPages: Array.from(selectedPages), mode: splitMode, customFileName, name: pdfData.file.name } }, [buffer.buffer] as any)
       worker.onmessage = async (e) => {
         const { type, payload } = e.data
         if (type === 'SUCCESS') {
           const blob = new Blob([payload], { type: 'application/pdf' })
           const url = createUrl(blob)
-          addActivity({ name: `${customFileName || 'split'}.pdf`, tool: 'Split', size: blob.size, resultUrl: url })
+          addActivity({ name: `${customFileName || 'split'}.pdf`, tool: 'Split', size: blob.size, resultUrl: url, buffer: new Uint8Array(await blob.arrayBuffer()) })
           setIsProcessing(false); worker.terminate()
         } else if (type === 'SUCCESS_BATCH') {
+          const { default: JSZip } = await import('jszip')
           const zip = new JSZip()
           payload.forEach((res: { name: string, buffer: Uint8Array }) => { zip.file(res.name, res.buffer) })
           const zipBlob = await zip.generateAsync({ type: 'blob' })
           const url = createUrl(zipBlob)
-          addActivity({ name: `${customFileName || 'split'}.zip`, tool: 'Split', size: zipBlob.size, resultUrl: url })
+          addActivity({ name: `${customFileName || 'split'}.zip`, tool: 'Split', size: zipBlob.size, resultUrl: url, buffer: new Uint8Array(await zipBlob.arrayBuffer()) })
           setIsProcessing(false); worker.terminate()
         } else if (type === 'ERROR') {
           toast.error(payload); setIsProcessing(false); worker.terminate()
@@ -294,18 +300,21 @@ export default function SplitTool() {
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Output Filename</label>
                       <input type="text" value={customFileName} onChange={(e) => setCustomFileName(e.target.value)} className="w-full bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm dark:text-white" />
+                      {pdfData.password && (
+                        <p className="text-amber-700 dark:text-amber-400 font-bold text-[11px] leading-relaxed mt-3 text-center">File output will be unlocked.</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Range Selection</label>
                       <div className="flex gap-2">
-                        <input type="text" value={rangeInput} onChange={(e) => setRangeInput(e.target.value)} placeholder="e.g. 1, 3-5" className="flex-1 bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm dark:text-white" />
+                        <input type="text" value={rangeInput} onChange={(e) => setRangeInput(e.target.value)} placeholder="e.g. 1, 3-5" className="flex-1 min-w-0 bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm dark:text-white" />
                         <button onClick={() => parseRange(rangeInput)} className="px-4 bg-rose-500 text-white rounded-xl font-black text-[10px] uppercase active:scale-95 transition-transform">Apply</button>
                       </div>
                       <p className="text-[8px] text-gray-400 mt-2 px-1">Use commas for separate pages and dashes for ranges.</p>
                     </div>
                   </div>
                   <div className="pt-6 border-t border-gray-100 dark:border-white/5">
-                    <div className="flex justify-between items-end mb-4 px-1">
+                    <div className="flex justify-between items-center mb-4 px-1">
                       <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Selected</span>
                       <span className="text-xl font-black text-rose-500">{selectedPages.size} <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Pages</span></span>
                     </div>
@@ -326,7 +335,6 @@ export default function SplitTool() {
           </div>
         </div>
       )}
-      <PrivacyBadge />
     </NativeToolLayout>
   )
 }

@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { Image as ImageIcon, Lock, Loader2, X, Sparkles } from 'lucide-react'
-import JSZip from 'jszip'
 import { toast } from 'sonner'
 import { Capacitor } from '@capacitor/core'
 
@@ -8,7 +7,6 @@ import { getPdfMetaData, loadPdfDocument, unlockPdf } from '../../utils/pdfHelpe
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import SuccessState from './shared/SuccessState'
-import PrivacyBadge from './shared/PrivacyBadge'
 import { NativeToolLayout } from './shared/NativeToolLayout'
 
 type PdfData = { file: File, thumbnail?: string, pageCount: number, isLocked: boolean, pdfDoc?: any, password?: string }
@@ -40,7 +38,7 @@ export default function ExtractImagesTool() {
     if (result.success) {
       setPdfData({ ...pdfData, isLocked: false, pageCount: result.pageCount, pdfDoc: result.pdfDoc, thumbnail: result.thumbnail, password: unlockPassword })
       setCustomFileName(`${pdfData.file.name.replace('.pdf', '')}-extracted`)
-    } else { toast.error('Incorrect password') }
+    } else { toast.error(`Incorrect password for "${pdfData.file.name}".`) }
     setIsProcessing(false)
   }
 
@@ -55,7 +53,7 @@ export default function ExtractImagesTool() {
         setPdfData({ file, pageCount: meta.pageCount, isLocked: false, pdfDoc, thumbnail: meta.thumbnail })
         setCustomFileName(`${file.name.replace('.pdf', '')}-extracted`)
       }
-    } catch (err) { console.error(err) } finally { setIsProcessing(false); setDownloadUrl(null) }
+    } catch (err) { console.error(err); toast.error('Failed to open PDF') } finally { setIsProcessing(false); setDownloadUrl(null) }
   }
 
   const extractImages = async () => {
@@ -64,7 +62,7 @@ export default function ExtractImagesTool() {
     await new Promise(resolve => setTimeout(resolve, 100))
     
     try {
-      const zip = new JSZip()
+      const { default: JSZip } = await import('jszip'); const zip = new JSZip()
       let imageCounter = 0
       
       for (let i = 1; i <= pdfData.pageCount; i++) {
@@ -122,7 +120,7 @@ export default function ExtractImagesTool() {
       const url = URL.createObjectURL(zipBlob)
       setDownloadUrl(url)
       setExtractedCount(imageCounter)
-      addActivity({ name: `${customFileName}.zip`, tool: 'Extract Images', size: zipBlob.size, resultUrl: url })
+      addActivity({ name: `${customFileName}.zip`, tool: 'Extract Images', size: zipBlob.size, resultUrl: url, buffer: new Uint8Array(await zipBlob.arrayBuffer()) })
       toast.success(`Extracted ${imageCounter} images!`)
     } catch (error: any) { 
       toast.error(`Error: ${error.message}`) 
@@ -194,7 +192,6 @@ export default function ExtractImagesTool() {
           </div>
         </div>
       )}
-      <PrivacyBadge />
     </NativeToolLayout>
   )
 }

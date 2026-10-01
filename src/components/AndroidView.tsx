@@ -9,18 +9,20 @@
  */
 
 import { useNavigate } from 'react-router-dom'
-import { 
+import {
   ChevronRight as ChevronRightIcon,
   FileText as FileTextIcon,
-  Layers as LayersIcon, 
-  Zap as ZapIcon, 
-  Scissors as ScissorsIcon, 
+  Layers as LayersIcon,
+  Zap as ZapIcon,
+  Scissors as ScissorsIcon,
   Lock as LockIcon,
-  Moon as MoonIcon, 
-  Sun as SunIcon, 
+  Moon as MoonIcon,
+  Sun as SunIcon,
   Upload as UploadIcon,
-  LayoutGrid as LayoutGridIcon, 
-  ClipboardList
+  LayoutGrid as LayoutGridIcon,
+  ClipboardList,
+  Heart as HeartIcon,
+  Github as GHIcon
 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { getRecentActivity, ActivityEntry } from '../utils/recentActivity'
@@ -198,9 +200,30 @@ export default function AndroidView({ theme, toggleTheme, onFileSelect }: Androi
            </div>
         </section>
 
+        {/* Support */}
+        <section>
+          <a
+            href="https://potatameister.github.io/support"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-5 bg-zinc-950 dark:bg-white rounded-[2rem] flex items-center gap-4 shadow-xl active:scale-[0.99] transition-all relative overflow-hidden"
+          >
+            <div className="w-10 h-10 bg-white/10 dark:bg-black/5 rounded-xl flex items-center justify-center shrink-0">
+              <HeartIcon size={20} className="text-rose-500" fill="currentColor" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-black text-white dark:text-black block leading-none mb-1">Support PaperKnife</span>
+              <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">Help fuel development</span>
+            </div>
+            <div className="w-8 h-8 bg-white/10 dark:bg-black/5 rounded-full flex items-center justify-center shrink-0">
+              <GHIcon size={16} className="text-white dark:text-black" />
+            </div>
+          </a>
+        </section>
+
         {/* Minimal Footer */}
         <div className="flex flex-col items-center gap-2 py-8 opacity-20">
-           <p className="text-[8px] font-black uppercase tracking-[0.4em] dark:text-white text-center">PaperKnife v1.0.9</p>
+           <p className="text-[8px] font-black uppercase tracking-[0.4em] dark:text-white text-center">PaperKnife v1.1.0</p>
         </div>
 
       </main>

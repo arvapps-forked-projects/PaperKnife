@@ -1,16 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
 import { Loader2, Lock, Grid, Move, RefreshCcw, X } from 'lucide-react'
-import { PDFDocument } from 'pdf-lib'
 import { DndContext, closestCenter, KeyboardSensor, useSensor, useSensors, DragEndEvent, TouchSensor, MouseSensor } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { toast } from 'sonner'
 
 import { getPdfMetaData, loadPdfDocument, renderPageThumbnail, unlockPdf } from '../../utils/pdfHelpers'
+import { reorderPdf } from '../../utils/rearrangeEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import SuccessState from './shared/SuccessState'
-import PrivacyBadge from './shared/PrivacyBadge'
 import { NativeToolLayout } from './shared/NativeToolLayout'
 
 type RearrangePdfData = { file: File, pageCount: number, isLocked: boolean, pdfDoc?: any, password?: string, thumbnail?: string }
@@ -73,7 +72,7 @@ export default function RearrangeTool() {
       setPdfData({ ...pdfData, isLocked: false, pageCount: result.pageCount, pdfDoc: result.pdfDoc, password: unlockPassword, thumbnail: result.thumbnail })
       setPageOrder(Array.from({ length: result.pageCount }, (_, i) => (i + 1).toString()))
       setCustomFileName(`${pdfData.file.name.replace('.pdf', '')}-rearranged`)
-    } else { toast.error('Incorrect password') }
+    } else { toast.error(`Incorrect password for "${pdfData?.file.name}".`) }
     setIsProcessing(false)
   }
 
@@ -89,7 +88,7 @@ export default function RearrangeTool() {
         setPageOrder(Array.from({ length: meta.pageCount }, (_, i) => (i + 1).toString()))
         setCustomFileName(`${file.name.replace('.pdf', '')}-rearranged`)
       }
-    } catch (err) { console.error(err) } finally { setIsProcessing(false); setDownloadUrl(null) }
+    } catch (err) { console.error(err); toast.error('Failed to open PDF') } finally { setIsProcessing(false); setDownloadUrl(null) }
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -107,15 +106,10 @@ export default function RearrangeTool() {
     if (!pdfData) return
     setIsProcessing(true); await new Promise(resolve => setTimeout(resolve, 100))
     try {
-      const arrayBuffer = await pdfData.file.arrayBuffer()
-      const pdfDoc = await PDFDocument.load(arrayBuffer, { password: pdfData.password || undefined, ignoreEncryption: true } as any)
-      const newPdf = await PDFDocument.create()
       const indices = pageOrder.map(id => parseInt(id) - 1)
-      const copiedPages = await newPdf.copyPages(pdfDoc, indices)
-      copiedPages.forEach(page => newPdf.addPage(page))
-      const pdfBytes = await newPdf.save(); const blob = new Blob([pdfBytes as any], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob); setDownloadUrl(url)
-      addActivity({ name: `${customFileName}.pdf`, tool: 'Rearrange', size: blob.size, resultUrl: url })
+      const res = await reorderPdf({ file: pdfData.file, password: pdfData.password }, indices, (blob) => URL.createObjectURL(blob))
+      setDownloadUrl(res.url)
+      addActivity({ name: `${customFileName}.pdf`, tool: 'Rearrange', size: res.size, resultUrl: res.url, buffer: res.buffer })
     } catch (error: any) { toast.error(`Error: ${error.message}`) } finally { setIsProcessing(false) }
   }
 
@@ -176,6 +170,7 @@ export default function RearrangeTool() {
                 <div>
                   <label className="block text-[10px] font-black uppercase text-gray-400 mb-3">Output Filename</label>
                   <input type="text" value={customFileName} onChange={(e) => setCustomFileName(e.target.value)} className="w-full bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm dark:text-white" />
+                  {pdfData.password && (<p className="text-amber-700 dark:text-amber-400 font-bold text-[11px] leading-relaxed mt-3 text-center">File output will be unlocked.</p>)}
                 </div>
               </div>
             ) : (
@@ -185,7 +180,6 @@ export default function RearrangeTool() {
           </div>
         </div>
       )}
-      <PrivacyBadge />
     </NativeToolLayout>
   )
 }

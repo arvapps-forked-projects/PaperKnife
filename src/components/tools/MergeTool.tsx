@@ -7,12 +7,12 @@ import { toast } from 'sonner'
 import { Capacitor } from '@capacitor/core'
 
 import { getPdfMetaData, unlockPdf } from '../../utils/pdfHelpers'
+import { decryptInput } from '../../utils/decryptInput'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import { useObjectURL } from '../../utils/useObjectURL'
 import { saveWorkspace, getWorkspace, clearWorkspace } from '../../utils/workspacePersistence'
 import SuccessState from './shared/SuccessState'
-import PrivacyBadge from './shared/PrivacyBadge'
 import { NativeToolLayout } from './shared/NativeToolLayout'
 
 // File Item Type
@@ -90,7 +90,7 @@ function SortableItem({ id, file, onRemove, onRotate, onUnlock }: { id: string, 
               placeholder="Password" 
               value={localPass}
               onChange={(e) => setLocalPass(e.target.value)}
-              className="flex-1 bg-gray-50 dark:bg-black border border-gray-100 dark:border-zinc-800 rounded-lg px-2 py-1 text-[10px] font-bold outline-none focus:border-rose-500 text-gray-900 dark:text-white"
+              className="flex-1 min-w-0 bg-gray-50 dark:bg-black border border-gray-100 dark:border-zinc-800 rounded-lg px-2 py-1 text-[10px] font-bold outline-none focus:border-rose-500 text-gray-900 dark:text-white"
             />
             <button 
               onClick={handleUnlockClick}
@@ -317,17 +317,27 @@ export default function MergeTool() {
     setProgress(0)
     
     try {
-      const worker = new Worker(new URL('../../utils/pdfWorker.ts', import.meta.url), { type: 'module' })
-      const fileDatas = []
+      const fileDatas: { buffer: Uint8Array, rotation: number, name: string }[] = []
       for (const f of files) {
+        if (!f.file || f.file.size === 0) { toast.error(`"${f.file?.name || 'File'}" is empty`); setIsProcessing(false); return }
+        if (!f.pageCount || f.pageCount === 0) { toast.error(`"${f.file.name}" has no readable pages`); setIsProcessing(false); return }
+        let bytes: Uint8Array = new Uint8Array(await f.file.arrayBuffer())
+        if (f.password) {
+          try {
+            bytes = await decryptInput(bytes, f.password, f.file.name)
+          } catch (e: any) {
+            toast.error(e.message || `Failed to unlock "${f.file.name}".`); setIsProcessing(false); return
+          }
+        }
         fileDatas.push({
-          buffer: await f.file.arrayBuffer(),
+          buffer: bytes,
           rotation: f.rotation,
-          password: f.password
+          name: f.file.name
         })
       }
 
-      worker.postMessage({ type: 'MERGE_PDFS', payload: { files: fileDatas } })
+      const worker = new Worker(new URL('../../utils/pdfWorker.ts', import.meta.url), { type: 'module' })
+      worker.postMessage({ type: 'MERGE_PDFS', payload: { files: fileDatas } }, fileDatas.map(d => d.buffer.buffer) as any)
 
       worker.onmessage = (e) => {
         const { type, payload } = e.data
@@ -348,7 +358,8 @@ export default function MergeTool() {
             name: fileName,
             tool: 'Merge',
             size: blob.size,
-            resultUrl: url
+            resultUrl: url,
+            buffer: payload
           })
           
           setIsProcessing(false)
@@ -462,6 +473,9 @@ export default function MergeTool() {
                       onChange={(e) => setCustomFileName(e.target.value)}
                       className="w-full bg-gray-50 dark:bg-black rounded-xl px-4 py-3 outline-none font-bold text-sm border border-transparent focus:border-rose-500 transition-colors dark:text-white"
                    />
+                   {files.some(f => f.password) && (
+                     <p className="text-amber-700 dark:text-amber-400 font-bold text-[11px] leading-relaxed mt-3 text-center">File output will be unlocked.</p>
+                   )}
                 </div>
               )}
             </div>
@@ -476,12 +490,6 @@ export default function MergeTool() {
                <h3 className="text-xl font-bold dark:text-white mb-2">Select PDF Files</h3>
                <p className="text-sm text-gray-400 font-medium">Tap to browse or drag and drop here</p>
             </button>
-          )}
-
-          {files.length > 0 && !objectUrl && !isNative && (
-             <div className="mt-8">
-                <ActionButton />
-             </div>
           )}
 
           {isProcessing && !isNative && (
@@ -506,7 +514,6 @@ export default function MergeTool() {
         </div>
 
         <input type="file" multiple accept=".pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
-        <PrivacyBadge />
       </div>
     </NativeToolLayout>
   )

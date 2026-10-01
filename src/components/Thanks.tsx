@@ -1,22 +1,18 @@
-import { Github as GHIcon, Heart as HeartIcon, Sparkles, ChevronRight } from 'lucide-react'
+import { Github as GHIcon, Heart as HeartIcon, Sparkles } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { NativeToolLayout } from './tools/shared/NativeToolLayout'
 import { PaperKnifeLogo } from './Logo'
 
+const supporters = [
+  'Kalyan', 'For the Planet', '1260er', 'Sushant Sangle', 'Bittu Shaw',
+  '@chetly96', 'Andreil', 'Csaba Gal', 'Jason', 'Vishnumahanthy Mohan',
+  'Maurin', 'Moh', 'Balboc', 'Winkewinke', 'Akalollo',
+  'Loïc', 'Johannes', 'yogs', 'Vincent', 'onyks',
+]
+
 export default function Thanks() {
   const isNative = Capacitor.isNativePlatform()
 
-  const links = [
-    { name: 'pdf-lib', url: 'https://github.com/Hopding/pdf-lib', desc: 'Core document engine for local manipulation.' },
-    { name: 'PDF.js', url: 'https://github.com/mozilla/pdf.js', desc: 'High-performance PDF rendering and parsing.' },
-    { name: 'Tesseract.js', url: 'https://github.com/naptha/tesseract.js', desc: 'Fully localized OCR engine for image-to-text conversion.' },
-    { name: 'JSZip', url: 'https://github.com/Stuk/jszip', desc: 'Local file compression and bundling.' },
-    { name: 'Lucide', url: 'https://github.com/lucide-icons/lucide', desc: 'Beautifully crafted open-source icons.' },
-    { name: 'Capacitor', url: 'https://github.com/ionic-team/capacitor', desc: 'Native bridge for cross-platform mobile apps.' },
-    { name: 'OpenCode', url: 'https://github.com/opencode-ai/opencode', desc: 'Open-source AI coding assistant for the terminal.' },
-    { name: 'Termux', url: 'https://github.com/termux/termux-app', desc: 'Mobile terminal for on-the-go development.' },
-    { name: 'Gemini CLI', url: 'https://github.com/google-gemini/gemini-cli', desc: 'AI assistance for architectural design.' },
-  ]
 
   const content = (
     <div className="animate-in fade-in duration-700">
@@ -28,7 +24,7 @@ export default function Thanks() {
           The <span className="text-rose-500">Supporters.</span>
         </h2>
         <p className="text-base md:text-lg text-gray-500 dark:text-zinc-400 leading-relaxed font-medium max-w-xl mx-auto px-4">
-          PaperKnife is a self-funded labor of love. These are the individuals and tools that keep the engine running.
+          PaperKnife is a self-funded labor of love. These are the people who keep it free and private.
         </p>
       </section>
 
@@ -48,42 +44,33 @@ export default function Thanks() {
             <p className="text-zinc-400 text-sm font-medium leading-relaxed max-w-lg mb-8 mx-auto md:mx-0">
               The heroes who fuel the engine. Your support ensures PaperKnife stays free and private forever. Sponsors receive a permanent shout-out here.
             </p>
-            <a href="https://github.com/sponsors/potatameister" target="_blank" className="inline-flex items-center gap-3 px-8 py-3.5 bg-white text-rose-600 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:scale-105 transition-transform shadow-lg">
-              <HeartIcon size={14} fill="currentColor" /> Sponsor Project
-            </a>
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+              <a href="https://potatameister.github.io/support" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 px-8 py-3.5 bg-white text-rose-600 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:scale-105 transition-transform shadow-lg">
+                <HeartIcon size={14} fill="currentColor" /> Support PaperKnife
+              </a>
+              <a href="https://github.com/potatameister/PaperKnife" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 px-8 py-3.5 bg-zinc-950 dark:bg-white text-white dark:text-black border border-white/20 dark:border-transparent rounded-2xl font-black uppercase tracking-widest text-[10px] hover:scale-105 transition-transform shadow-lg">
+                <GHIcon size={14} /> Source Code
+              </a>
+            </div>
           </div>
         </div>
 
-        {/* Technologies Grid - High Density */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-          {links.map((link) => (
-            <a 
-              key={link.name} 
-              href={link.url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="group p-5 bg-white dark:bg-zinc-900 rounded-[1.75rem] border border-gray-100 dark:border-white/5 hover:border-rose-500 transition-all shadow-sm flex items-center justify-between"
+        {/* Supporters */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          {supporters.map((name) => (
+            <span
+              key={name}
+              className="px-5 py-3 bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm font-bold text-sm dark:text-white"
             >
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="w-10 h-10 bg-gray-50 dark:bg-black rounded-xl flex items-center justify-center group-hover:bg-rose-500 group-hover:text-white transition-colors text-gray-400 shrink-0 border border-transparent dark:border-white/5">
-                  <GHIcon size={18} />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-black text-xs tracking-widest uppercase dark:text-white mb-0.5">
-                    {link.name}
-                  </h3>
-                  <p className="text-[9px] text-gray-500 dark:text-zinc-500 font-bold uppercase tracking-tight truncate">{link.desc}</p>
-                </div>
-              </div>
-              <ChevronRight size={14} className="text-gray-300 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
-            </a>
+              {name}
+            </span>
           ))}
         </div>
       </div>
 
       <footer className="text-center py-8 opacity-20">
          <PaperKnifeLogo size={24} iconColor="#F43F5E" partColor="currentColor" className="mx-auto mb-4" />
-         <p className="text-[8px] font-black uppercase tracking-[0.5em]">PaperKnife Protocol v1.0.9</p>
+         <p className="text-[8px] font-black uppercase tracking-[0.5em]">PaperKnife Protocol v1.1.0</p>
       </footer>
     </div>
   )

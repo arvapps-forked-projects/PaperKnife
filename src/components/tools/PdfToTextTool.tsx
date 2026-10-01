@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { Loader2, Copy, FileText, Lock, Check, Download, Zap, ScanSearch, ArrowRight, X } from 'lucide-react'
 import { toast } from 'sonner'
-import Tesseract from 'tesseract.js'
 import { Capacitor } from '@capacitor/core'
 
 import { getPdfMetaData, loadPdfDocument, unlockPdf, downloadFile } from '../../utils/pdfHelpers'
 import { usePipeline } from '../../utils/pipelineContext'
-import PrivacyBadge from './shared/PrivacyBadge'
 import { NativeToolLayout } from './shared/NativeToolLayout'
 
 type PdfToTextData = { file: File, pageCount: number, isLocked: boolean, pdfDoc?: any, password?: string }
@@ -41,7 +39,7 @@ export default function PdfToTextTool() {
     setIsProcessing(true)
     const result = await unlockPdf(pdfData.file, unlockPassword)
     if (result.success) { setPdfData({ ...pdfData, isLocked: false, pageCount: result.pageCount, pdfDoc: result.pdfDoc, password: unlockPassword }) }
-    else { toast.error('Incorrect password') }
+    else { toast.error(`Incorrect password for "${pdfData.file.name}".`) }
     setIsProcessing(false)
   }
 
@@ -57,7 +55,7 @@ export default function PdfToTextTool() {
         setCustomFileName(`${file.name.replace('.pdf', '')}-extracted`)
       }
       setExtractedText('')
-    } catch (err) { console.error(err) } finally { setIsProcessing(false) }
+    } catch (err) { console.error(err); toast.error('Failed to open PDF') } finally { setIsProcessing(false) }
   }
 
   const handleStartExtraction = async () => {
@@ -73,10 +71,12 @@ export default function PdfToTextTool() {
         }
       } else {
         let currentPageIndex = 1
+        const { default: Tesseract } = await import('tesseract.js')
+        const tessBase = `${import.meta.env.BASE_URL}tesseract/`
         const worker = await Tesseract.createWorker('eng', 1, { 
-          workerPath: '/tesseract/worker.min.js',
-          corePath: '/tesseract/tesseract-core.wasm.js',
-          langPath: '/tesseract/',
+          workerPath: tessBase + 'worker.min.js',
+          corePath: tessBase + 'tesseract-core.wasm.js',
+          langPath: tessBase,
           gzip: false,
           cacheMethod: 'none',
           logger: (m: any) => { 
@@ -97,7 +97,13 @@ export default function PdfToTextTool() {
         await worker.terminate()
       }
       setExtractedText(result); toast.success('Complete!')
-    } catch (err: any) { toast.error(err.message) } finally { setIsProcessing(false) }
+    } catch (err: any) {
+      const cause = String(err?.message || err || '')
+      const hint = /worker|wasm|fetch|load|network|fetch/i.test(cause)
+        ? ' The OCR engine files may be missing — run `npm run vendor:ocr`.'
+        : cause ? ` ${cause}` : ''
+      toast.error(`Text extraction failed for "${pdfData.file.name}".${hint}`)
+    } finally { setIsProcessing(false) }
   }
 
   const handleDownload = async () => {
@@ -196,7 +202,6 @@ export default function PdfToTextTool() {
           </div>
         </div>
       )}
-      <PrivacyBadge />
     </NativeToolLayout>
   )
 }

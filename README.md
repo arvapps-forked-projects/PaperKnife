@@ -4,17 +4,15 @@
 
 # PaperKnife
 
-**A simple, honest PDF utility that respects your privacy.**
+A privacy-first PDF utility: merge, compress, sign, and protect. Works 100% offline — no servers, no trackers.
 
-[![License](https://img.shields.io/badge/license-AGPL--3.0-rose.svg)](LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/potatameister/PaperKnife?style=flat&color=rose)](https://github.com/potatameister/PaperKnife/stargazers)
-[![Web App](https://img.shields.io/badge/web-live-emerald.svg)](https://potatameister.github.io/PaperKnife/)
-[![Android App](https://img.shields.io/badge/android-apk-blue.svg)](https://github.com/potatameister/PaperKnife/releases/latest)
-[![Twitter](https://img.shields.io/badge/twitter-@potatameister-black?logo=x)](https://x.com/potatameister)
+[![Download APK](https://img.shields.io/badge/download-APK-green)](https://github.com/potatameister/PaperKnife/releases/latest)
+[![Web App](https://img.shields.io/badge/web-live-emerald)](https://potatameister.github.io/PaperKnife/)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-rose)](LICENSE)
 
 ---
 
-## Preview
+## Screenshots
 
 <p align="center">
   <img src="assets/preview/screenshot1.jpg" width="45%" alt="Web View">
@@ -23,47 +21,65 @@
 
 ---
 
-### Why I built this
+## Features
 
-Most PDF websites ask you to upload your sensitive documents—bank statements, IDs, contracts—to their servers. Even if they promise to delete them, your data still leaves your device and travels across the internet.
+- Merge & split PDFs
+- Compress with quality presets
+- Password protect and unlock PDFs
+- Convert PDF pages to images (JPG/PNG, 72–300 DPI)
+- Draw, upload, and reuse signatures
+- Watermarks, page numbers, metadata cleaning
+- Deep OCR text extraction (full version only)
+- And more!
 
-I built **PaperKnife** to solve this. It's a collection of tools that run entirely in your browser or on your phone. Your files never leave your memory, they aren't stored in any database, and no server ever sees them. It works 100% offline.
+All processing happens on your device. Your files never leave your phone.
 
-### What it can do
+---
 
-*   **Modify:** Merge multiple files, split pages, rotate, and rearrange.
-*   **Optimize:** Reduce file size with different quality presets.
-*   **Secure:** Encrypt files with passwords or remove them locally.
-*   **Convert:** Convert between PDF and images (JPG/PNG) or plain text.
-*   **Sign:** Add an electronic signature to your documents safely.
-*   **Sanitize:** Deep clean metadata (like Author or Producer) to keep your files anonymous.
+## Download
 
-### How to use it
+Get the latest APK: [PaperKnife v1.1.0](https://github.com/potatameister/PaperKnife/releases/latest)
 
-*   **On Android:** Download the [latest APK](https://github.com/potatameister/PaperKnife/releases/latest) or get it from:
+- **Full** (GitHub releases): everything, including offline OCR.
+- **Lite** (IzzyOnDroid): same app without the OCR engine — smaller download.
 
 [<img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroidButtonGreyBorder_nofont.png" height="80" alt="Get it at IzzyOnDroid">](https://apt.izzysoft.de/packages/com.paperknife.app)
 
-*   **On the Web:** Visit the [live site](https://potatameister.github.io/PaperKnife/). You can use it like any other website, or "install" it as a PWA for offline access.
+Or use the [live site](https://potatameister.github.io/PaperKnife/) — installable as a PWA for offline access.
 
 ---
 
-### Support the project
+## Run the web version locally
 
-PaperKnife is a solo project. It's open-source, ad-free, and tracker-free because I believe privacy is a right, not a luxury.
+Requirements: **Node.js 22+** and `git`. Everything below runs on your own machine.
 
-If this tool has saved you time or kept your data safe, please consider:
-*   **Sponsoring:** Support development via [GitHub Sponsors](https://github.com/sponsors/potatameister).
-*   **Giving a Star:** It helps other people find the project.
-*   **Spreading the word:** Share it with anyone who handles sensitive documents.
+```bash
+git clone https://github.com/potatameister/PaperKnife.git
+cd PaperKnife
+npm ci                  # install dependencies (also used by CI)
+npm run vendor:ocr      # optional, only needed for Deep OCR (one-time)
+npm run dev             # start the local server (http://localhost:3000)
+```
+
+Notes:
+*   `npm run vendor:ocr` is **optional** — skip it and everything works except Deep OCR. The engine files (~30 MB) are never committed to git, so a fresh clone cannot do OCR until you run it. Re-running later is safe — it skips what is already there.
+*   `npm run build` produces a static `dist/` folder you can serve with any static host (`npm run preview` to check it locally). No server component exists — it is plain files.
+*   To build the Android APK yourself, you additionally need JDK 21 + Android SDK, then `npx cap sync android` after `npm run build`. The OCR files (if vendored) are bundled into the full APK automatically.
 
 ---
 
-### Under the hood
+## Support
 
-PaperKnife is built with **React** and **TypeScript**. The core processing is handled by **pdf-lib** and **pdfjs-dist**, which run in a sandboxed environment using WebAssembly. The Android version is powered by **Capacitor**.
+[![Sponsor](https://img.shields.io/badge/Sponsor-potatameister-red?style=for-the-badge&logo=github-sponsors)](https://potatameister.github.io/support)
 
-This project is licensed under the **GNU AGPL v3** to ensure it remains open and transparent forever.
+PaperKnife is a solo project — open-source, ad-free, and tracker-free. All support options live on the [support page](https://potatameister.github.io/support). If it saved you time or kept your data safe: chip in, star the repo, or share it with anyone who handles sensitive documents.
 
 ---
+
+## License
+
+GNU AGPL v3 — free forever, auditable by anyone.
+
+---
+
 *Made with care by [potatameister](https://github.com/potatameister)*

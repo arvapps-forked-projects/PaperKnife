@@ -3,11 +3,12 @@ import { Info, Lock, Edit3, Loader2, Sparkles, X } from 'lucide-react'
 import { PDFDocument } from 'pdf-lib'
 import { toast } from 'sonner'
 
-import { getPdfMetaData, unlockPdf } from '../../utils/pdfHelpers'
+import { getPdfMetaData, unlockPdf, destroyPdf } from '../../utils/pdfHelpers'
+import { getProcessBytes } from '../../utils/decryptInput'
+import { wipeMetadata } from '../../utils/metadataEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import SuccessState from './shared/SuccessState'
-import PrivacyBadge from './shared/PrivacyBadge'
 import { NativeToolLayout } from './shared/NativeToolLayout'
 
 type MetadataPdfData = {
@@ -62,12 +63,24 @@ export default function MetadataTool() {
     setIsProcessing(true)
     const result = await unlockPdf(pdfData.file, unlockPassword)
     if (result.success) {
-      const arrayBuffer = await pdfData.file.arrayBuffer()
-      const pdfDoc = await PDFDocument.load(arrayBuffer, { password: unlockPassword } as any)
-      const currentMeta = { title: pdfDoc.getTitle() || '', author: pdfDoc.getAuthor() || '', subject: pdfDoc.getSubject() || '', keywords: pdfDoc.getKeywords() || '', creator: pdfDoc.getCreator() || '', producer: pdfDoc.getProducer() || '' }
+      const savedAuthor = localStorage.getItem('defaultAuthor') || ''
+      let currentMeta = { title: '', author: savedAuthor, subject: '', keywords: '', creator: '', producer: '' }
+      try {
+        const md = await result.pdfDoc?.getMetadata()
+        const info = md?.info || {}
+        currentMeta = {
+          title: info.Title || '',
+          author: savedAuthor || info.Author || '',
+          subject: info.Subject || '',
+          keywords: Array.isArray(info.Keywords) ? info.Keywords.join(', ') : (info.Keywords || ''),
+          creator: info.Creator || '',
+          producer: info.Producer || ''
+        }
+      } catch { /* fall back to empty fields */ }
+      try { await destroyPdf(result.pdfDoc) } catch { /* ignore */ }
       setPdfData({ ...pdfData, isLocked: false, pageCount: result.pageCount, password: unlockPassword, currentMeta })
       setMeta(currentMeta)
-    } else { toast.error('Incorrect password') }
+    } else { toast.error(`Incorrect password for "${pdfData.file.name}".`) }
     setIsProcessing(false)
   }
 
@@ -92,7 +105,7 @@ export default function MetadataTool() {
       }
       setPdfData({ file, pageCount: metaRes.pageCount, isLocked: metaRes.isLocked, currentMeta })
       setMeta(currentMeta); setCustomFileName(`${file.name.replace('.pdf', '')}-metadata`)
-    } catch (err) { console.error(err) } finally { setIsProcessing(false); setDownloadUrl(null) }
+    } catch (err) { console.error(err); toast.error('Failed to open PDF') } finally { setIsProcessing(false); setDownloadUrl(null) }
   }
 
   const saveMetadata = async (deepClean = false) => {
@@ -100,27 +113,15 @@ export default function MetadataTool() {
     setIsProcessing(true); if (deepClean) setIsDeepCleaning(true)
     await new Promise(resolve => setTimeout(resolve, 300))
     try {
-      const arrayBuffer = await pdfData.file.arrayBuffer()
-      const sourcePdf = await PDFDocument.load(arrayBuffer, { password: pdfData.password || undefined, ignoreEncryption: true } as any)
+      const bytes = await getProcessBytes(pdfData.file, pdfData.password)
+      const sourcePdf = await PDFDocument.load(bytes, { throwOnInvalidObject: false } as any)
       let targetPdf: PDFDocument
       
       if (deepClean) {
-        targetPdf = await PDFDocument.create()
-        const copiedPages = await targetPdf.copyPages(sourcePdf, sourcePdf.getPageIndices())
-        copiedPages.forEach(page => targetPdf.addPage(page))
-        
-        targetPdf.setTitle('')
-        targetPdf.setAuthor('')
-        targetPdf.setSubject('')
-        targetPdf.setKeywords([])
-        targetPdf.setCreator(' ')
-        targetPdf.setProducer(' ')
-        
-        targetPdf.setModificationDate(new Date())
-        targetPdf.setCreationDate(new Date())
-        
-        const dict = targetPdf.catalog.get(targetPdf.context.obj('Metadata'))
-        if (dict) targetPdf.catalog.delete(targetPdf.context.obj('Metadata'))
+        const res = await wipeMetadata({ file: pdfData.file, password: pdfData.password }, (blob) => URL.createObjectURL(blob))
+        setDownloadUrl(res.url)
+        addActivity({ name: `${customFileName}.pdf`, tool: 'Metadata', size: res.size, resultUrl: res.url, buffer: res.buffer })
+        return
       } else { 
         targetPdf = sourcePdf 
         targetPdf.setTitle(meta.title || '')
@@ -135,7 +136,7 @@ export default function MetadataTool() {
       const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       setDownloadUrl(url)
-      addActivity({ name: `${customFileName}.pdf`, tool: 'Metadata', size: blob.size, resultUrl: url })
+      addActivity({ name: `${customFileName}.pdf`, tool: 'Metadata', size: blob.size, resultUrl: url, buffer: new Uint8Array(await blob.arrayBuffer()) })
     } catch (error: any) { 
       toast.error(`Error: ${error.message}`) 
     } finally { 
@@ -194,6 +195,7 @@ export default function MetadataTool() {
                     onChange={(e) => setCustomFileName(e.target.value)} 
                     className="w-full bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm dark:text-white" 
                   />
+                  {pdfData.password && (<p className="text-amber-700 dark:text-amber-400 font-bold text-[11px] leading-relaxed mt-3 text-center">File output will be unlocked.</p>)}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {['title', 'author', 'subject', 'keywords', 'creator', 'producer'].map(field => (
@@ -211,7 +213,6 @@ export default function MetadataTool() {
           </div>
         </div>
       )}
-      <PrivacyBadge />
     </NativeToolLayout>
   )
 }

@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { 
   Trash2, Clock, Moon, Sun, Monitor,
   ChevronRight, Info, Zap, User, DownloadCloud, ListFilter,
-  RotateCcw, ShieldCheck, Bug, Heart as HeartIcon, Settings2
+  RotateCcw, ShieldCheck, Bug, Heart as HeartIcon, Github as GHIcon, Trophy as TrophyIcon
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { clearActivity } from '../utils/recentActivity'
 import { toast } from 'sonner'
 import { Theme } from '../types'
 import { NativeToolLayout } from './tools/shared/NativeToolLayout'
+import { TabHeader } from './AndroidHeader'
+import { PaperKnifeLogo } from './Logo'
 import { hapticImpact } from '../utils/haptics'
 
 // --- Custom UI Components ---
@@ -105,22 +107,26 @@ export default function Settings({ theme, setTheme }: { theme: Theme, setTheme: 
   }
 
   return (
-    <NativeToolLayout title="System" description="Core Configuration" actions={null}>
+    <NativeToolLayout title="Settings" description="Core Configuration" actions={null} hideNativeHeader>
+      <div className="md:hidden -mx-4 -mt-4">
+        <TabHeader title="Settings" />
+      </div>
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 pb-40">
-        
-        {/* Integrated Header */}
-        <div className="flex items-center gap-4 px-2 mb-8 mt-2">
-           <div className="w-12 h-12 bg-rose-500 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-500/20 text-white shrink-0">
-              <Settings2 size={24} strokeWidth={2.5} />
-           </div>
-           <div>
-              <h2 className="text-xl font-black dark:text-white tracking-tighter leading-none mb-1">Preferences</h2>
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Protocol v1.0.9 • Local</p>
-           </div>
+
+        {/* Identity card */}
+        <div className="mb-8 p-5 bg-zinc-950 dark:bg-white rounded-[2rem] flex items-center gap-4 shadow-xl overflow-hidden relative">
+          <div className="w-12 h-12 bg-white dark:bg-zinc-950 rounded-2xl flex items-center justify-center shrink-0">
+            <PaperKnifeLogo size={24} iconColor="#F43F5E" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-black text-white dark:text-black tracking-tighter leading-none mb-1">PaperKnife</h2>
+            <p className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">Private by design • No servers</p>
+          </div>
+          <span className="text-[9px] font-black uppercase tracking-widest text-white dark:text-black bg-white/10 dark:bg-black/10 rounded-full px-3 py-1.5 shrink-0">v1.1.0</span>
         </div>
 
-        {/* Visual Interface */}
-        <SettingGroup title="Interface">
+        {/* Appearance */}
+        <SettingGroup title="Appearance">
           <div className="p-2 grid grid-cols-3 gap-2">
             {[
               { id: 'light', icon: Sun, label: 'Light' },
@@ -140,26 +146,26 @@ export default function Settings({ theme, setTheme }: { theme: Theme, setTheme: 
               </button>
             ))}
           </div>
-          <SettingItem 
-            icon={Zap} 
-            title="Haptic Feedback" 
-            subtitle="Tactile Response Engine"
+          <SettingItem
+            icon={Zap}
+            title="Haptic Feedback"
+            subtitle="Vibrate when tapping buttons"
             action={<ToggleSwitch checked={haptics} onChange={() => handleToggle('hapticsEnabled', haptics, setHaptics)} />}
           />
         </SettingGroup>
 
-        {/* Workflow Automation */}
-        <SettingGroup title="Workflow">
-          <SettingItem 
-            icon={DownloadCloud} 
-            title="Auto-Download" 
-            subtitle="Immediate result export"
+        {/* Automation */}
+        <SettingGroup title="Automation">
+          <SettingItem
+            icon={DownloadCloud}
+            title="Auto-Download"
+            subtitle="Save results automatically"
             action={<ToggleSwitch checked={autoDownload} onChange={() => handleToggle('autoDownload', autoDownload, setAutoDownload)} />}
           />
           <div className="p-5 flex flex-col gap-3">
             <div className="flex items-center gap-3 text-gray-900 dark:text-white">
                <User size={16} className="text-rose-500" />
-               <span className="text-[11px] font-black uppercase tracking-tight">Default Author Metadata</span>
+               <span className="text-[11px] font-black uppercase tracking-tight">Default Author</span>
             </div>
             <input 
               type="text"
@@ -176,15 +182,15 @@ export default function Settings({ theme, setTheme }: { theme: Theme, setTheme: 
 
         {/* Privacy Protocol */}
         <SettingGroup title="Privacy">
-          <SettingItem 
-            icon={Clock} 
-            title="Auto-Wipe History" 
-            subtitle="Automatic log destruction"
+          <SettingItem
+            icon={Clock}
+            title="Auto-Wipe History"
+            subtitle="Delete history automatically"
             action={<ToggleSwitch checked={autoWipe} onChange={() => handleToggle('autoWipe', autoWipe, setAutoWipe)} />}
           />
           {autoWipe && (
             <div className="px-5 py-3 flex items-center justify-between bg-rose-50/50 dark:bg-rose-900/10 border-t border-rose-100/20 dark:border-rose-900/20 animate-in slide-in-from-top-2">
-               <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Wipe Delay</span>
+               <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Delete After</span>
                <select 
                 value={wipeTimer}
                 onChange={(e) => handleSelect('autoWipeTimer', e.target.value, setWipeTimer)}
@@ -204,8 +210,8 @@ export default function Settings({ theme, setTheme }: { theme: Theme, setTheme: 
                   <ListFilter size={18} />
                 </div>
                 <div>
-                  <h4 className="text-[13px] font-black text-gray-900 dark:text-white leading-none">History Limit</h4>
-                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tight mt-1">Files to keep</p>
+                   <h4 className="text-[13px] font-black text-gray-900 dark:text-white leading-none">History Limit</h4>
+                   <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tight mt-1">Maximum entries kept</p>
                 </div>
              </div>
              <select 
@@ -222,32 +228,46 @@ export default function Settings({ theme, setTheme }: { theme: Theme, setTheme: 
           </div>
         </SettingGroup>
 
-        {/* Ecosystem */}
-        <SettingGroup title="Ecosystem">
-          <SettingItem 
-            icon={HeartIcon} 
-            title="Sponsor Project" 
-            subtitle="Fuel development"
+        {/* Support */}
+        <SettingGroup title="Support">
+          <SettingItem
+            icon={HeartIcon}
+            title="Support PaperKnife"
+            subtitle="Help, contact, and sponsor"
             iconColor="text-rose-500 bg-rose-50 dark:bg-rose-900/20"
-            onClick={() => window.open('https://github.com/sponsors/potatameister', '_blank')}
+            onClick={() => window.open('https://potatameister.github.io/support', '_blank')}
           />
-          <SettingItem 
-            icon={Bug} 
-            title="Report Issue" 
-            subtitle="GitHub Tracker"
+          <SettingItem
+            icon={GHIcon}
+            title="Source Code"
+            subtitle="Audit the app yourself"
+            iconColor="bg-zinc-950 text-white dark:bg-white dark:text-black"
+            onClick={() => window.open('https://github.com/potatameister/PaperKnife', '_blank')}
+          />
+          <SettingItem
+            icon={TrophyIcon}
+            title="Hall of Fame"
+            subtitle="Supporters and contributors"
+            iconColor="text-amber-500 bg-amber-50 dark:bg-amber-900/20"
+            onClick={() => navigate('/thanks')}
+          />
+          <SettingItem
+            icon={Bug}
+            title="Report Issue"
+            subtitle="Report a problem"
             onClick={() => window.open('https://github.com/potatameister/PaperKnife/issues', '_blank')}
           />
-          <SettingItem 
-            icon={Info} 
-            title="About PaperKnife" 
-            subtitle="Protocol Details"
+          <SettingItem
+            icon={Info}
+            title="About PaperKnife"
+            subtitle="About this app"
             onClick={() => navigate('/about')}
           />
-          <SettingItem 
-            icon={ShieldCheck} 
-            title="Privacy Protocol" 
-            subtitle="Data Handling Spec"
-            onClick={() => navigate('/privacy')}
+          <SettingItem
+            icon={ShieldCheck}
+            title="Privacy Protocol"
+            subtitle="How your data is handled"
+            onClick={() => window.open('https://potatameister.github.io/privacy/paperknife', '_blank')}
           />
         </SettingGroup>
 
@@ -255,28 +275,29 @@ export default function Settings({ theme, setTheme }: { theme: Theme, setTheme: 
         <div className="mt-12">
            <h3 className="px-6 mb-2 text-[9px] font-black uppercase tracking-[0.3em] text-red-500">Danger Zone</h3>
            <div className="bg-white dark:bg-zinc-900 rounded-[2.25rem] border border-red-100 dark:border-red-900/20 divide-y divide-red-50 dark:divide-red-900/10 shadow-sm overflow-hidden mb-4">
-              <SettingItem 
-                icon={RotateCcw} 
-                title="Restore Defaults" 
-                subtitle="Reset Preferences" 
+              <SettingItem
+                icon={RotateCcw}
+                title="Restore Defaults"
+                subtitle="Reset all settings"
                 onClick={restoreDefaults}
                 iconColor="text-gray-500 bg-gray-100 dark:bg-zinc-800"
               />
-              <SettingItem 
-                icon={Trash2} 
-                title="Nuke All Data" 
-                subtitle="Irreversible Wipedown" 
+              <SettingItem
+                icon={Trash2}
+                title="Erase All Data"
+                subtitle="Cannot be undone"
                 danger
                 onClick={async () => {
-                  if(confirm("DANGER: This will permanently delete your history and reset all configuration. Proceed?")) {
+                  if(confirm("This will permanently delete your history and reset all settings. Proceed?")) {
                     await clearActivity()
+                    try { (await import('../utils/workspacePersistence')).clearAllWorkspaces(); } catch { /* ignore */ }
                     localStorage.clear()
                     window.location.reload()
                   }
                 }}
               />
            </div>
-           <p className="text-[8px] font-black uppercase text-center text-gray-300 dark:text-zinc-700 tracking-[0.5em] mt-10">Configuration Engine v1.0.9 Stable</p>
+           <p className="text-[8px] font-black uppercase text-center text-gray-300 dark:text-zinc-700 tracking-[0.5em] mt-10">PaperKnife v1.1.0</p>
         </div>
 
       </div>

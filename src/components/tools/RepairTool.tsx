@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { Loader2, ShieldAlert, Upload, X, FileCheck } from 'lucide-react'
-import { PDFDocument } from 'pdf-lib'
 import { toast } from 'sonner'
 
+import { getPdfMetaData } from '../../utils/pdfHelpers'
+import { repairPdf } from '../../utils/repairEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import SuccessState from './shared/SuccessState'
-import PrivacyBadge from './shared/PrivacyBadge'
 import { NativeToolLayout } from './shared/NativeToolLayout'
 
 export default function RepairTool() {
@@ -15,6 +15,7 @@ export default function RepairTool() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
   const [originalFile, setOriginalFile] = useState<File | null>(null)
+  const [isLockedFile, setIsLockedFile] = useState(false)
   const [customFileName, setCustomFileName] = useState('')
 
   useEffect(() => {
@@ -30,34 +31,29 @@ export default function RepairTool() {
     setOriginalFile(file)
     setCustomFileName(`repaired-${file.name.replace('.pdf', '')}`)
     setDownloadUrl(null)
+    const meta = await getPdfMetaData(file)
+    setIsLockedFile(meta.isLocked)
+    if (meta.isLocked) toast.error(`"${file.name}" is locked — unlock it first, then repair.`)
   }
 
   const startRepair = async () => {
     if (!originalFile) return
     setIsProcessing(true)
     try {
-      const arrayBuffer = await originalFile.arrayBuffer()
-      const pdfDoc = await PDFDocument.load(arrayBuffer, { 
-        ignoreEncryption: true, 
-        throwOnInvalidObject: false 
-      } as any)
-      
-      const pdfBytes = await pdfDoc.save()
-      const blob = new Blob([pdfBytes as any], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
-      
-      setDownloadUrl(url)
-      addActivity({ name: `${customFileName}.pdf`, tool: 'Repair', size: blob.size, resultUrl: url })
+      const res = await repairPdf({ file: originalFile }, (blob) => URL.createObjectURL(blob))
+
+      setDownloadUrl(res.url)
+      addActivity({ name: `${customFileName}.pdf`, tool: 'Repair', size: res.size, resultUrl: res.url, buffer: res.buffer })
       toast.success('PDF rebuilt successfully!')
-    } catch (error: any) { 
-      toast.error(`Repair failed: ${error.message}`) 
+    } catch (error: any) {
+      toast.error(`Repair failed for "${originalFile.name}": ${error.message}`)
     } finally { 
       setIsProcessing(false) 
     }
   }
 
   const ActionButton = () => (
-    <button onClick={startRepair} disabled={isProcessing} className="w-full bg-rose-500 hover:bg-rose-600 text-white font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 py-4 rounded-2xl text-sm md:p-6 md:rounded-3xl md:text-xl flex items-center justify-center gap-3 shadow-lg shadow-rose-500/20">
+    <button onClick={startRepair} disabled={isProcessing || isLockedFile} className="w-full bg-rose-500 hover:bg-rose-600 text-white font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 py-4 rounded-2xl text-sm md:p-6 md:rounded-3xl md:text-xl flex items-center justify-center gap-3 shadow-lg shadow-rose-500/20">
       {isProcessing ? <Loader2 className="animate-spin" /> : <FileCheck size={20} />} Attempt Repair
     </button>
   )
@@ -95,6 +91,9 @@ export default function RepairTool() {
                     className="w-full bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm dark:text-white" 
                   />
                 </div>
+                {isLockedFile && (
+                  <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-900/20 text-center"><p className="text-amber-700 dark:text-amber-400 font-bold text-[11px] leading-relaxed">This file is locked — unlock it with the Unlock tool first, then repair the unlocked copy.</p></div>
+                )}
               </div>
             ) : (
               <SuccessState message="Reconstruction Complete!" downloadUrl={downloadUrl} fileName={`${customFileName}.pdf`} onStartOver={() => { setDownloadUrl(null); setOriginalFile(null); }} showPreview={true} />
@@ -110,7 +109,6 @@ export default function RepairTool() {
           PaperKnife rebuilds the internal cross-reference table and regenerates the file structure from scratch. This can restore access to many files that "cannot be opened."
         </div>
       </div>
-      <PrivacyBadge />
     </NativeToolLayout>
   )
 }

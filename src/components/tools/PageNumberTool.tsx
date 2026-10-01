@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { Hash, Lock, Loader2, Eye } from 'lucide-react'
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { toast } from 'sonner'
 
 import { getPdfMetaData, unlockPdf, loadPdfDocument } from '../../utils/pdfHelpers'
+import { numberPages } from '../../utils/pageNumberEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import SuccessState from './shared/SuccessState'
-import PrivacyBadge from './shared/PrivacyBadge'
 import { NativeToolLayout } from './shared/NativeToolLayout'
 
 type PageNumberPdfData = { file: File, pageCount: number, isLocked: boolean, password?: string, pdfDoc?: any, thumbnail?: string }
@@ -23,8 +22,6 @@ export default function PageNumberTool() {
   const [unlockPassword, setUnlockPassword] = useState('')
   const [format, setFormat] = useState('Page {n} of {total}')
   const [position, setPosition] = useState<Position>('bottom-center')
-  const [startFrom] = useState(1)
-  const [fontSize] = useState(12)
   const [color] = useState('#6B7280')
 
   useEffect(() => {
@@ -42,7 +39,7 @@ export default function PageNumberTool() {
     if (result.success) {
       setPdfData({ ...pdfData, isLocked: false, pageCount: result.pageCount, password: unlockPassword, pdfDoc: result.pdfDoc, thumbnail: result.thumbnail })
       setCustomFileName(`${pdfData.file.name.replace('.pdf', '')}-numbered`)
-    } else { toast.error('Incorrect password') }
+    } else { toast.error(`Incorrect password for "${pdfData?.file.name}".`) }
     setIsProcessing(false)
   }
 
@@ -58,33 +55,20 @@ export default function PageNumberTool() {
         setPdfData({ file, pageCount: meta.pageCount, isLocked: false, pdfDoc, thumbnail: meta.thumbnail })
         setCustomFileName(`${file.name.replace('.pdf', '')}-numbered`)
       }
-    } catch (err) { console.error(err) } finally { setIsProcessing(false); setDownloadUrl(null) }
-  }
-
-  const hexToRgb = (hex: string) => {
-    const r = parseInt(hex.slice(1, 3), 16) / 255; const g = parseInt(hex.slice(3, 5), 16) / 255; const b = parseInt(hex.slice(5, 7), 16) / 255
-    return rgb(r, g, b)
+    } catch (err) { console.error(err); toast.error('Failed to open PDF') } finally { setIsProcessing(false); setDownloadUrl(null) }
   }
 
   const applyPageNumbers = async () => {
     if (!pdfData) return
     setIsProcessing(true); await new Promise(resolve => setTimeout(resolve, 100))
     try {
-      const arrayBuffer = await pdfData.file.arrayBuffer()
-      const pdfDoc = await PDFDocument.load(arrayBuffer, { password: pdfData.password || undefined, ignoreEncryption: true } as any)
-      const font = await pdfDoc.embedFont(StandardFonts.Helvetica); const pages = pdfDoc.getPages(); const textColor = hexToRgb(color)
-      pages.forEach((page, idx) => {
-        const { width, height } = page.getSize(); const n = idx + startFrom; const total = pages.length + (startFrom - 1)
-        const label = format.replace('{n}', n.toString()).replace('{total}', total.toString())
-        const textWidth = font.widthOfTextAtSize(label, fontSize); const margin = 30
-        let x = width / 2 - textWidth / 2; let y = margin
-        if (position.includes('left')) x = margin; if (position.includes('right')) x = width - textWidth - margin
-        if (position.includes('top')) y = height - margin - fontSize
-        page.drawText(label, { x, y, size: fontSize, font, color: textColor })
-      })
-      const pdfBytes = await pdfDoc.save(); const blob = new Blob([pdfBytes as any], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob); setDownloadUrl(url)
-      addActivity({ name: `${customFileName}.pdf`, tool: 'Page Numbers', size: blob.size, resultUrl: url })
+      const res = await numberPages(
+        { file: pdfData.file, password: pdfData.password },
+        { format, position },
+        (blob) => URL.createObjectURL(blob)
+      )
+      setDownloadUrl(res.url)
+      addActivity({ name: `${customFileName}.pdf`, tool: 'Page Numbers', size: res.size, resultUrl: res.url, buffer: res.buffer })
     } catch (error: any) { toast.error(`Error: ${error.message}`) } finally { setIsProcessing(false) }
   }
 
@@ -165,6 +149,7 @@ export default function PageNumberTool() {
                   <div>
                     <label className="block text-[10px] font-black uppercase text-gray-400 mb-3">Output Filename</label>
                     <input type="text" value={customFileName} onChange={(e) => setCustomFileName(e.target.value)} className="w-full bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm dark:text-white" />
+                    {pdfData.password && (<p className="text-amber-700 dark:text-amber-400 font-bold text-[11px] leading-relaxed mt-3 text-center">File output will be unlocked.</p>)}
                   </div>
                 </>
               ) : (
@@ -175,7 +160,6 @@ export default function PageNumberTool() {
           </div>
         </div>
       )}
-      <PrivacyBadge />
     </NativeToolLayout>
   )
 }

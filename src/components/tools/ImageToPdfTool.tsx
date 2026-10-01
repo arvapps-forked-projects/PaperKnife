@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Plus, X, Loader2, GripVertical, Upload, ArrowRight } from 'lucide-react'
 import { PDFDocument } from 'pdf-lib'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
@@ -9,8 +9,8 @@ import { Capacitor } from '@capacitor/core'
 
 import { addActivity } from '../../utils/recentActivity'
 import SuccessState from './shared/SuccessState'
-import PrivacyBadge from './shared/PrivacyBadge'
 import { NativeToolLayout } from './shared/NativeToolLayout'
+import { usePipeline } from '../../utils/pipelineContext'
 
 type ImageFile = { id: string, file: File, preview: string }
 
@@ -29,6 +29,7 @@ function SortableImageItem({ id, img, onRemove }: { id: string, img: ImageFile, 
 
 export default function ImageToPdfTool() {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { consumePipelineFiles } = usePipeline()
   const [images, setImages] = useState<ImageFile[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
@@ -42,6 +43,13 @@ export default function ImageToPdfTool() {
     if (newImages.length === 0) { toast.error('Select images (JPG, PNG, WebP)'); return }
     setImages(prev => [...prev, ...newImages]); setDownloadUrl(null)
   }
+
+  useEffect(() => {
+    const files = consumePipelineFiles()
+    if (files && files.length > 0) {
+      handleFiles(files)
+    }
+  }, [])
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -60,7 +68,7 @@ export default function ImageToPdfTool() {
       }
       const pdfBytes = await pdfDoc.save(); const blob = new Blob([pdfBytes as any], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob); setDownloadUrl(url)
-      addActivity({ name: `${customFileName}.pdf`, tool: 'Image to PDF', size: blob.size, resultUrl: url })
+      addActivity({ name: `${customFileName}.pdf`, tool: 'Image to PDF', size: blob.size, resultUrl: url, buffer: new Uint8Array(await blob.arrayBuffer()) })
     } catch (error: any) { toast.error(`Error: ${error.message}`) } finally { setIsProcessing(false) }
   }
 
@@ -85,12 +93,10 @@ export default function ImageToPdfTool() {
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}><SortableContext items={images.map(img => img.id)} strategy={verticalListSortingStrategy}><div className="space-y-2">{images.map(img => <SortableImageItem key={img.id} id={img.id} img={img} onRemove={(id) => setImages(prev => prev.filter(i => i.id !== id))} />)}</div></SortableContext></DndContext>
           <button onClick={() => fileInputRef.current?.click()} className="w-full py-3 border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl text-gray-400 font-bold text-sm flex items-center justify-center gap-2 hover:border-rose-500 hover:text-rose-500 transition-all"><Plus size={16} /> Add More</button>
           <div><label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Filename</label><input type="text" value={customFileName} onChange={(e) => setCustomFileName(e.target.value)} className="w-full bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm" /></div>
-          {!isNative && <ActionButton />}
         </div>
       ) : (
         <SuccessState message="PDF Ready!" downloadUrl={downloadUrl} fileName={`${customFileName}.pdf`} onStartOver={() => { setImages([]); setDownloadUrl(null); }} />
       )}
-      <PrivacyBadge />
     </NativeToolLayout>
   )
 }

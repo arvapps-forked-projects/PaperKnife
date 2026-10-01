@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { 
-  Search, ChevronRight
+import {
+  ChevronRight
 } from 'lucide-react'
 import { Tool, ToolCategory } from '../types'
 import { PaperKnifeLogo } from './Logo'
+import { TabHeader } from './AndroidHeader'
 
 export default function AndroidToolsView({ tools }: { tools: Tool[] }) {
   const navigate = useNavigate()
@@ -34,22 +35,12 @@ export default function AndroidToolsView({ tools }: { tools: Tool[] }) {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-black pb-32 transition-colors">
-      <header className="px-6 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-6">
-        <h1 className="text-4xl font-black tracking-tighter dark:text-white mb-8">All Tools</h1>
-        
-        <div className="relative group">
-          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-gray-500">
-            <Search size={20} />
-          </div>
-          <input 
-            type="text"
-            placeholder="Search for a tool..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#EEE8F4] dark:bg-[#2B2930] border-none rounded-[1.75rem] py-4 pl-14 pr-6 text-base font-bold placeholder:text-gray-400 focus:bg-white dark:focus:bg-[#36343B] ring-2 ring-transparent focus:ring-rose-500/10 transition-all dark:text-white outline-none shadow-sm"
-          />
-        </div>
-      </header>
+      <TabHeader
+        title="All Tools"
+        query={searchQuery}
+        onQuery={setSearchQuery}
+        placeholder="Search for a tool..."
+      />
 
       <main className="px-4 space-y-8">
         {(Object.keys(groupedTools) as ToolCategory[]).map((category) => (
@@ -85,7 +76,7 @@ export default function AndroidToolsView({ tools }: { tools: Tool[] }) {
 
       <footer className="text-center py-12 opacity-20">
          <PaperKnifeLogo size={24} iconColor="#F43F5E" partColor="currentColor" className="mx-auto mb-4" />
-         <p className="text-[9px] font-black uppercase tracking-[0.5em]">PaperKnife Version 1.0.9</p>
+         <p className="text-[9px] font-black uppercase tracking-[0.5em]">PaperKnife Version 1.1.0</p>
       </footer>
     </div>
   )

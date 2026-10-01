@@ -1,14 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { Lock, Unlock, Loader2, X } from 'lucide-react'
-import { PDFDocument } from 'pdf-lib'
 import { toast } from 'sonner'
 
-import { getPdfMetaData, unlockPdf } from '../../utils/pdfHelpers'
+import { getPdfMetaData } from '../../utils/pdfHelpers'
+import { unlockPdfFile } from '../../utils/unlockEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import { useObjectURL } from '../../utils/useObjectURL'
 import SuccessState from './shared/SuccessState'
-import PrivacyBadge from './shared/PrivacyBadge'
 import { NativeToolLayout } from './shared/NativeToolLayout'
 
 type UnlockPdfFile = {
@@ -28,6 +27,7 @@ export default function UnlockTool() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [password, setPassword] = useState('')
   const [customFileName, setCustomFileName] = useState('paperknife-unlocked')
+  const [resultMessage, setResultMessage] = useState('Encryption Removed!')
 
   useEffect(() => {
     const pipelined = consumePipelineFile()
@@ -52,17 +52,14 @@ export default function UnlockTool() {
 
   const performUnlock = async () => {
     if (!pdfData || (pdfData.isLocked && !password)) return
+    const sourceName = pdfData.file.name
     setIsProcessing(true); await new Promise(resolve => setTimeout(resolve, 100))
     try {
-      const result = await unlockPdf(pdfData.file, password)
-      if (!result.success) throw new Error('Incorrect password.')
-      const arrayBuffer = await pdfData.file.arrayBuffer()
-      const pdfDoc = await PDFDocument.load(arrayBuffer, { password: password || undefined, ignoreEncryption: true } as any)
-      const pdfBytes = await pdfDoc.save()
-      const blob = new Blob([pdfBytes as any], { type: 'application/pdf' })
-      const url = createUrl(blob)
-      addActivity({ name: `${customFileName || 'unlocked'}.pdf`, tool: 'Unlock', size: blob.size, resultUrl: url })
-    } catch (error: any) { toast.error(error.message || 'Error.') } finally { setIsProcessing(false) }
+      const wasLocked = pdfData.isLocked
+      const res = await unlockPdfFile({ file: pdfData.file, password, isLocked: pdfData.isLocked }, password, createUrl)
+      setResultMessage(wasLocked ? 'Encryption Removed!' : 'File Was Already Unlocked')
+      addActivity({ name: `${customFileName || 'unlocked'}.pdf`, tool: 'Unlock', size: res.size, resultUrl: res.url, buffer: res.buffer })
+    } catch (error: any) { toast.error(error.message || `Failed to unlock "${sourceName}".`) } finally { setIsProcessing(false) }
   }
 
   const ActionButton = () => (
@@ -110,12 +107,11 @@ export default function UnlockTool() {
                 </div>
               </div>
             ) : (
-              <SuccessState message="Encryption Removed!" downloadUrl={objectUrl} fileName={`${customFileName || 'unlocked'}.pdf`} onStartOver={() => { clearUrls(); setPassword(''); setPdfData(null); setIsProcessing(false); }} />
+              <SuccessState message={resultMessage} downloadUrl={objectUrl} fileName={`${customFileName || 'unlocked'}.pdf`} onStartOver={() => { clearUrls(); setPassword(''); setPdfData(null); setIsProcessing(false); }} />
             )}
           </div>
         </div>
       )}
-      <PrivacyBadge />
     </NativeToolLayout>
   )
 }

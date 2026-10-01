@@ -1,16 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { Lock, ShieldCheck, Loader2, ArrowRight, X } from 'lucide-react'
-import { PDFDocument } from 'pdf-lib'
-import { encryptPDF } from '@pdfsmaller/pdf-encrypt-lite'
 import { toast } from 'sonner'
 import { Capacitor } from '@capacitor/core'
 
 import { getPdfMetaData, unlockPdf } from '../../utils/pdfHelpers'
+import { protectPdf } from '../../utils/protectEngines'
 import { addActivity } from '../../utils/recentActivity'
 import { usePipeline } from '../../utils/pipelineContext'
 import { useObjectURL } from '../../utils/useObjectURL'
 import SuccessState from './shared/SuccessState'
-import PrivacyBadge from './shared/PrivacyBadge'
 import { NativeToolLayout } from './shared/NativeToolLayout'
 
 type ProtectPdfFile = {
@@ -48,7 +46,7 @@ export default function ProtectTool() {
     if (result.success) {
       setPdfData({ ...pdfData, isLocked: false, thumbnail: result.thumbnail, pageCount: result.pageCount, sourcePassword: unlockPassword })
       setCustomFileName(`${pdfData.file.name.replace('.pdf', '')}-protected`)
-    } else { toast.error('Incorrect password') }
+    } else { toast.error(`Incorrect password for "${pdfData?.file.name}".`) }
     setIsProcessing(false)
   }
 
@@ -72,19 +70,8 @@ export default function ProtectTool() {
     await new Promise(resolve => setTimeout(resolve, 150))
     
     try {
-      const arrayBuffer = await pdfData.file.arrayBuffer()
-      const sourcePdf = await PDFDocument.load(arrayBuffer, { password: pdfData.sourcePassword || undefined, ignoreEncryption: true } as any)
-      const newPdf = await PDFDocument.create()
-      const pages = await newPdf.copyPages(sourcePdf, sourcePdf.getPageIndices())
-      pages.forEach(page => newPdf.addPage(page))
-      const pdfBytes = await newPdf.save()
-      
-      // Heavy task: encryption
-      const encryptedBytes = await encryptPDF(pdfBytes, password)
-      
-      const blob = new Blob([encryptedBytes as any], { type: 'application/pdf' })
-      const url = createUrl(blob)
-      addActivity({ name: `${customFileName || 'protected'}.pdf`, tool: 'Protect', size: blob.size, resultUrl: url })
+      const res = await protectPdf({ file: pdfData.file }, pdfData.sourcePassword, password, createUrl)
+      addActivity({ name: `${customFileName || 'protected'}.pdf`, tool: 'Protect', size: res.size, resultUrl: res.url, buffer: res.buffer })
     } catch (error: any) { 
       console.error('Encryption error:', error)
       toast.error(`Encryption failed: ${error.message}`) 
@@ -134,7 +121,7 @@ export default function ProtectTool() {
                   <div><label className="block text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest px-1">New Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm dark:text-white" placeholder="••••••••" /></div>
                   <div><label className="block text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest px-1">Confirm Password</label><input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm dark:text-white" placeholder="••••••••" /></div>
                 </div>
-                <div><label className="block text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest px-1">Output Filename</label><input type="text" value={customFileName} onChange={(e) => setCustomFileName(e.target.value)} className="w-full bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm dark:text-white" /></div>
+                <div><label className="block text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest px-1">Output Filename</label><input type="text" value={customFileName} onChange={(e) => setCustomFileName(e.target.value)} className="w-full bg-gray-50 dark:bg-black rounded-xl px-4 py-3 border border-transparent focus:border-rose-500 outline-none font-bold text-sm dark:text-white" />{pdfData.sourcePassword && (<p className="text-amber-700 dark:text-amber-400 font-bold text-[11px] leading-relaxed mt-3 text-center">Output will use your new password.</p>)}</div>
               </div>
             ) : (
               <SuccessState message="Encrypted Successfully" downloadUrl={objectUrl} fileName={`${customFileName || 'protected'}.pdf`} onStartOver={() => { clearUrls(); setPassword(''); setConfirmPassword(''); setPdfData(null); setIsProcessing(false); }} />
@@ -144,7 +131,6 @@ export default function ProtectTool() {
           </div>
         </div>
       )}
-      <PrivacyBadge />
     </NativeToolLayout>
   )
 }
